@@ -25,6 +25,7 @@
 #include "lstate.h"
 #include "lstring.h"
 #include "ltable.h"
+#include "lvararg.h"
 #include "lzio.h"
 
 

@@ -18,6 +18,7 @@
 #include "lua.h"
 
 #include "lauxlib.h"
+#include "lvararg.h"
 #include "lualib.h"
 
 #define MAXUNICODE	0x10FFFF

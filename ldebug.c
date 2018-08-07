@@ -27,6 +27,7 @@
 #include "lstring.h"
 #include "ltable.h"
 #include "ltm.h"
+#include "lvararg.h"
 #include "lvm.h"
 
 
@@ -48,7 +49,7 @@ static int currentpc (CallInfo *ci) {
 }
 
 
-static int currentline (CallInfo *ci) {
+int currentline (CallInfo *ci) {
   return getfuncline(ci_func(ci)->p, currentpc(ci));
 }
 
@@ -646,19 +647,6 @@ l_noret luaG_errormsg (lua_State *L) {
     luaD_callnoyield(L, L->top - 2, 1);  /* call it */
   }
   luaD_throw(L, LUA_ERRRUN);
-}
-
-
-l_noret luaG_runerror (lua_State *L, const char *fmt, ...) {
-  CallInfo *ci = L->ci;
-  const char *msg;
-  va_list argp;
-  va_start(argp, fmt);
-  msg = luaO_pushvfstring(L, fmt, argp);  /* format message */
-  va_end(argp);
-  if (isLua(ci))  /* if Lua function, add source:line information */
-    luaG_addinfo(L, msg, ci_func(ci)->p->source, currentline(ci));
-  luaG_errormsg(L);
 }
 
 

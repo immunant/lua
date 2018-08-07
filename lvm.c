@@ -28,6 +28,7 @@
 #include "lstring.h"
 #include "ltable.h"
 #include "ltm.h"
+#include "lvararg.h"
 #include "lvm.h"
 
 

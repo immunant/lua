@@ -17,6 +17,7 @@
 
 #include "lauxlib.h"
 #include "lualib.h"
+#include "lvararg.h"
 
 
 #undef PI

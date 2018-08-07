@@ -21,6 +21,7 @@
 #include "lobject.h"
 #include "lstring.h"
 #include "lundump.h"
+#include "lvararg.h"
 #include "lzio.h"
 
 

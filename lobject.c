@@ -26,6 +26,7 @@
 #include "lobject.h"
 #include "lstate.h"
 #include "lstring.h"
+#include "lvararg.h"
 #include "lvm.h"
 
 
@@ -461,16 +462,6 @@ const char *luaO_pushvfstring (lua_State *L, const char *fmt, va_list argp) {
   pushstr(L, fmt, strlen(fmt));
   if (n > 0) luaV_concat(L, n + 1);
   return svalue(L->top - 1);
-}
-
-
-const char *luaO_pushfstring (lua_State *L, const char *fmt, ...) {
-  const char *msg;
-  va_list argp;
-  va_start(argp, fmt);
-  msg = luaO_pushvfstring(L, fmt, argp);
-  va_end(argp);
-  return msg;
 }
 
 

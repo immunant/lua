@@ -31,6 +31,7 @@
 #include "lstring.h"
 #include "ltable.h"
 #include "lualib.h"
+#include "lvararg.h"
 
 
 

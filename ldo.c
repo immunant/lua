@@ -30,6 +30,7 @@
 #include "ltable.h"
 #include "ltm.h"
 #include "lundump.h"
+#include "lvararg.h"
 #include "lvm.h"
 #include "lzio.h"
 

@@ -27,6 +27,7 @@
 #include "ltable.h"
 #include "ltm.h"
 #include "lundump.h"
+#include "lvararg.h"
 #include "lvm.h"
 
 
@@ -510,19 +511,6 @@ LUA_API const char *lua_pushvfstring (lua_State *L, const char *fmt,
   const char *ret;
   lua_lock(L);
   ret = luaO_pushvfstring(L, fmt, argp);
-  luaC_checkGC(L);
-  lua_unlock(L);
-  return ret;
-}
-
-
-LUA_API const char *lua_pushfstring (lua_State *L, const char *fmt, ...) {
-  const char *ret;
-  va_list argp;
-  lua_lock(L);
-  va_start(argp, fmt);
-  ret = luaO_pushvfstring(L, fmt, argp);
-  va_end(argp);
   luaC_checkGC(L);
   lua_unlock(L);
   return ret;

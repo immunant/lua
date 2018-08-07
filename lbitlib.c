@@ -14,6 +14,7 @@
 
 #include "lauxlib.h"
 #include "lualib.h"
+#include "lvararg.h"
 
 
 #if defined(LUA_COMPAT_BITLIB)		/* { */
