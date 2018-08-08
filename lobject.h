@@ -539,10 +539,8 @@ LUAI_FUNC void luaO_arith (lua_State *L, int op, const TValue *p1,
 LUAI_FUNC size_t luaO_str2num (const char *s, TValue *o);
 LUAI_FUNC int luaO_hexavalue (int c);
 LUAI_FUNC void luaO_tostring (lua_State *L, StkId obj);
-LUAI_FUNC const char *luaO_pushvfstring (lua_State *L, const char *fmt,
-                                                       va_list argp);
 LUAI_FUNC void luaO_chunkid (char *out, const char *source, size_t len);
-
+LUAI_FUNC void pushstr (lua_State *L, const char *str, size_t l);
 
 #endif
 

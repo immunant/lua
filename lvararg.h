@@ -3,6 +3,8 @@
 
 #include "lua.h"
 
+#include <stdarg.h>
+
 #include "lstate.h"
 /*
  * lua.h
@@ -26,6 +28,8 @@ LUAI_FUNC l_noret luaG_runerror (lua_State *L, const char *fmt, ...);
  * lobject.h
  */
 LUAI_FUNC const char *luaO_pushfstring (lua_State *L, const char *fmt, ...);
+LUAI_FUNC const char *luaO_pushvfstring (lua_State *L, const char *fmt,
+                                                       va_list argp);
 
 
 

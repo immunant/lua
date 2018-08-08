@@ -59,7 +59,7 @@ MYLIBS= -ldl -lreadline
 
 
 CC= clang
-CFLAGS= -Wall -O2 $(MYCFLAGS)
+CFLAGS= -Wall $(MYCFLAGS)
 AR= ar rc
 RANLIB= ranlib
 RM= rm -f
