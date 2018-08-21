@@ -131,7 +131,7 @@ const char *luaO_pushvfstring (lua_State *L, const char *fmt, va_list argp) {
   luaD_checkstack(L, 1);
   pushstr(L, fmt, strlen(fmt));
   if (n > 0) luaV_concat(L, n + 1);
-  return svalue(L->top - 1);
+  return svalue_wrapper(L->top - 1);
 }
 
 

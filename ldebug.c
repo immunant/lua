@@ -684,3 +684,6 @@ void luaG_traceexec (lua_State *L) {
   }
 }
 
+const char *svalue_wrapper(StkId top) {
+    return svalue(top);
+}
