@@ -1,8 +1,6 @@
-#![allow(
-    dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals,
-    unused_mut
-)]
-#![feature(extern_types, libc)]
+use std::boxed::Box;
+use std::convert::From;
+
 extern crate libc;
 extern "C" {
     /*
@@ -941,12 +939,7 @@ pub unsafe extern "C" fn luaE_freeCI(mut L: *mut lua_State_0) -> () {
             break;
         }
         next = (*ci).next;
-        luaM_realloc_(
-            L,
-            ci as *mut libc::c_void,
-            ::std::mem::size_of::<CallInfo_0>() as libc::c_ulong,
-            0i32 as size_t,
-        );
+        Box::from_raw(ci);
         (*L).nci = (*L).nci.wrapping_sub(1)
     }
 }
@@ -1543,14 +1536,31 @@ pub unsafe extern "C" fn luaE_freethread(mut L: *mut lua_State_0, mut L1: *mut l
         0i32 as size_t,
     );
 }
+
+impl From<i32> for unnamed {
+    fn from(item: i32) -> Self {
+        let l = unnamed_1 { base: 0 as StkId, savedpc: 0 as *const Instruction };
+        unnamed { l }
+    }
+}
+
+pub extern "C" fn luaE_newCI(size: size_t) -> *mut CallInfo_0 {
+    let mut ci = Box::new(CallInfo {
+        func: 0 as StkId,
+        top: 0 as StkId,
+        previous: 0 as *mut CallInfo,
+        next: 0 as *mut CallInfo,
+        u: unnamed::from(0),
+        extra: 0 as ptrdiff_t,
+        nresults: 0 as libc::c_short,
+        callstatus: 0 as libc::c_ushort,
+    });
+    Box::into_raw(ci)
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State_0) -> *mut CallInfo_0 {
-    let mut ci: *mut CallInfo_0 = luaM_realloc_(
-        L,
-        0 as *mut libc::c_void,
-        0i32 as size_t,
-        ::std::mem::size_of::<CallInfo_0>() as libc::c_ulong,
-    ) as *mut CallInfo_0;
+    let mut ci: *mut CallInfo_0 = luaE_newCI(::std::mem::size_of::<CallInfo_0>() as libc::c_ulong,);
     if (*(*L).ci).next.is_null() {
     } else {
         __assert_fail(
@@ -1578,12 +1588,7 @@ pub unsafe extern "C" fn luaE_shrinkCI(mut L: *mut lua_State_0) -> () {
         next2 = (*(*ci).next).next;
         !next2.is_null()
     } {
-        luaM_realloc_(
-            L,
-            (*ci).next as *mut libc::c_void,
-            ::std::mem::size_of::<CallInfo>() as libc::c_ulong,
-            0i32 as size_t,
-        );
+        Box::from_raw((*ci).next);
         /* free next */
         (*L).nci = (*L).nci.wrapping_sub(1);
         /* remove 'next' from the list */

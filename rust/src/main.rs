@@ -1,17 +1,15 @@
-#![allow(
-    dead_code,
-    mutable_transmutes,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    unused_mut
-)]
-#![feature(
-    extern_types,
-    libc,
-    const_slice_as_ptr,
-    ptr_wrapping_offset_from
-)]
+#![allow(dead_code)]
+#![allow(mutable_transmutes)]
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
+#![allow(unused_mut)]
+
+#![feature(extern_types)]
+#![feature(libc)]
+#![feature(const_slice_as_ptr)]
+#![feature(ptr_wrapping_offset_from)]
+
 extern crate libc;
 pub mod lapi;
 pub mod lauxlib;
@@ -47,6 +45,7 @@ pub mod lundump;
 pub mod lutf8lib;
 pub mod lvm;
 pub mod lzio;
+
 extern "C" {
     pub type _IO_FILE_plus;
     /*
