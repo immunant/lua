@@ -1,3 +1,8 @@
+use lstate::{lua_State, global_State, CallInfo, 
+             stringtable};
+use lobject::{GCObject, TValue, Value, lua_TValue, Table, TString};
+use lfunc::UpVal;
+
 extern crate libc;
 extern "C" {
     /*
@@ -192,35 +197,7 @@ pub type size_t = libc::c_ulong;
 pub type ptrdiff_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct lua_State {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nci: libc::c_ushort,
-    pub status: lu_byte,
-    pub top: StkId,
-    pub l_G: *mut global_State,
-    pub ci: *mut CallInfo_0,
-    pub oldpc: *const Instruction,
-    pub stack_last: StkId,
-    pub stack: StkId,
-    pub openupval: *mut UpVal,
-    pub gclist: *mut GCObject,
-    pub twups: *mut lua_State,
-    pub errorJmp: *mut lua_longjmp,
-    pub base_ci: CallInfo_0,
-    pub hook: lua_Hook,
-    pub errfunc: ptrdiff_t,
-    pub stacksize: libc::c_int,
-    pub basehookcount: libc::c_int,
-    pub hookcount: libc::c_int,
-    pub nny: libc::c_ushort,
-    pub nCcalls: libc::c_ushort,
-    pub hookmask: sig_atomic_t,
-    pub allowhook: lu_byte,
-}
+pub type Table_0 = Table;
 /* 16-bit ints */
  /* }{ */
 /* } */
@@ -278,33 +255,6 @@ pub struct lua_Debug_0 {
     pub short_src: [libc::c_char; 60],
     pub i_ci: *mut CallInfo,
 }
-/* active function */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CallInfo {
-    pub func: StkId,
-    pub top: StkId,
-    pub previous: *mut CallInfo,
-    pub next: *mut CallInfo,
-    pub u: unnamed,
-    pub extra: ptrdiff_t,
-    pub nresults: libc::c_short,
-    pub callstatus: libc::c_ushort,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union unnamed {
-    l: unnamed_1,
-    c: unnamed_0,
-}
-/* only for C functions */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct unnamed_0 {
-    pub k: lua_KFunction,
-    pub old_errfunc: ptrdiff_t,
-    pub ctx: lua_KContext,
-}
 /* type for continuation-function contexts */
 pub type lua_KContext = intptr_t;
 /*
@@ -328,13 +278,6 @@ pub type lua_KFunction = Option<
 */
 /* thread status */
 pub type lua_State_0 = lua_State;
-/* only for Lua functions */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct unnamed_1 {
-    pub base: StkId,
-    pub savedpc: *const Instruction,
-}
 /* internal assertions for in-house debugging */
 /* to avoid problems with conditions too long */
 /*
@@ -385,13 +328,6 @@ pub type Instruction = libc::c_uint;
 */
 /* index to stack elements */
 pub type StkId = *mut TValue;
-pub type TValue = lua_TValue;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct lua_TValue {
-    pub value_: Value,
-    pub tt_: libc::c_int,
-}
 /*
 ** Common Header for all collectable objects (in macro form, to be
 ** included in other objects)
@@ -406,17 +342,6 @@ pub struct lua_TValue {
 /*
 ** Union of all Lua values
 */
-pub type Value = Value_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Value_0 {
-    gc: *mut GCObject,
-    p: *mut libc::c_void,
-    b: libc::c_int,
-    f: lua_CFunction,
-    i: lua_Integer,
-    n: lua_Number,
-}
 /*
 ** basic types
 */
@@ -470,14 +395,6 @@ pub type lua_CFunction = Option<unsafe extern "C" fn(_: *mut lua_State_0) -> lib
 /*
 ** Common type for all collectable objects
 */
-pub type GCObject = GCObject_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GCObject_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-}
 /*
 ** Information about a call.
 ** When a thread yields, 'func' is adjusted to pretend that the
@@ -491,14 +408,6 @@ pub type CallInfo_0 = CallInfo;
 /*
 ** Lua Upvalues
 */
-pub type UpVal = UpVal_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UpVal_0 {
-    pub v: *mut TValue,
-    pub refcount: lu_mem,
-    pub u: unnamed_2,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_2 {
@@ -526,97 +435,14 @@ pub struct unnamed_3 {
 /* }{ */
 pub type lu_mem = size_t;
 /*
-** Bits in CallInfo status
-*/
-/* original value of 'allowhook' */
-/* call is running a Lua function */
-/* call is running a debug hook */
-/* call is running on a fresh invocation
-                                   of luaV_execute */
-/* call is a yieldable protected call */
-/* call was tail called */
-/* last hook called yielded */
-/* using __lt for __le */
-/* call is running a finalizer */
-/* assume that CIST_OAH has offset 0 and that 'v' is strictly 0/1 */
-/*
-** 'global state', shared by all threads of this state
-*/
-pub type global_State = global_State_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct global_State_0 {
-    pub frealloc: lua_Alloc,
-    pub ud: *mut libc::c_void,
-    pub totalbytes: l_mem,
-    pub GCdebt: l_mem,
-    pub GCmemtrav: lu_mem,
-    pub GCestimate: lu_mem,
-    pub strt: stringtable,
-    pub l_registry: TValue,
-    pub seed: libc::c_uint,
-    pub currentwhite: lu_byte,
-    pub gcstate: lu_byte,
-    pub gckind: lu_byte,
-    pub gcrunning: lu_byte,
-    pub allgc: *mut GCObject,
-    pub sweepgc: *mut *mut GCObject,
-    pub finobj: *mut GCObject,
-    pub gray: *mut GCObject,
-    pub grayagain: *mut GCObject,
-    pub weak: *mut GCObject,
-    pub ephemeron: *mut GCObject,
-    pub allweak: *mut GCObject,
-    pub tobefnz: *mut GCObject,
-    pub fixedgc: *mut GCObject,
-    pub twups: *mut lua_State,
-    pub gcfinnum: libc::c_uint,
-    pub gcpause: libc::c_int,
-    pub gcstepmul: libc::c_int,
-    pub panic: lua_CFunction,
-    pub mainthread: *mut lua_State,
-    pub version: *const lua_Number,
-    pub memerrmsg: *mut TString,
-    pub tmname: [*mut TString; 24],
-    pub mt: [*mut Table; 9],
-    pub strcache: [[*mut TString; 5]; 23],
-}
-/*
 ** Header for string value; string bytes follow the end of this structure
 ** (aligned according to 'UTString'; see next).
 */
-pub type TString = TString_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TString_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub extra: lu_byte,
-    pub shrlen: lu_byte,
-    pub hash: libc::c_uint,
-    pub u: unnamed_4,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_4 {
     lnglen: size_t,
-    hnext: *mut TString_0,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Table {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub flags: lu_byte,
-    pub lsizenode: lu_byte,
-    pub sizearray: libc::c_uint,
-    pub array: *mut TValue,
-    pub node: *mut Node,
-    pub lastfree: *mut Node,
-    pub metatable: *mut Table,
-    pub gclist: *mut GCObject,
+    hnext: *mut TString,
 }
 /* copy a value into a key without messing up field 'next' */
 pub type Node = Node_0;
@@ -650,14 +476,6 @@ pub struct unnamed_5 {
 /* extra stack space to handle TM calls and some other extras */
 /* kinds of Garbage Collection */
 /* gc was forced by an allocation failure */
-pub type stringtable = stringtable_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct stringtable_0 {
-    pub hash: *mut *mut TString,
-    pub nuse: libc::c_int,
-    pub size: libc::c_int,
-}
 pub type l_mem = ptrdiff_t;
 /*
 ** Type for memory-allocation functions
@@ -802,7 +620,7 @@ pub struct LocVar_0 {
 #[repr(C)]
 pub union GCUnion {
     gc: GCObject,
-    ts: TString_0,
+    ts: TString,
     u: Udata,
     cl: Closure,
     h: Table,
@@ -818,7 +636,7 @@ pub struct Udata {
     pub ttuv_: lu_byte,
     pub metatable: *mut Table,
     pub len: size_t,
-    pub user_: Value_0,
+    pub user_: Value,
 }
 /*
 ** $Id: ldo.h,v 2.28 2015/11/23 11:29:43 roberto Exp roberto $
@@ -838,10 +656,10 @@ pub type Pfunc = Option<unsafe extern "C" fn(_: *mut lua_State_0, _: *mut libc::
 /*
 ** Ensures that address after this type is always fully aligned.
 */
-pub type UTString = UTString_0;
+pub type UTString_0 = UTString;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union UTString_0 {
+pub union UTString {
     dummy: L_Umaxalign,
     tsv: TString,
 }
@@ -850,7 +668,6 @@ pub union UTString_0 {
 pub union L_Umaxalign {
     b: [libc::c_char; 64],
 }
-pub type Table_0 = Table;
 /*
 ** Ensures that address after this type is always fully aligned.
 */
@@ -1349,7 +1166,7 @@ pub unsafe extern "C" fn lua_rotate(
 unsafe extern "C" fn reverse(mut L: *mut lua_State_0, mut from: StkId, mut to: StkId) -> () {
     while from < to {
         let mut temp: TValue = lua_TValue {
-            value_: Value_0 {
+            value_: Value {
                 gc: 0 as *const GCObject as *mut GCObject,
             },
             tt_: 0,
@@ -2177,7 +1994,7 @@ pub unsafe extern "C" fn lua_tolstring(
                 )).as_ptr(),
             );
         };
-        *len = if (*(&mut (*((*o).value_.gc as *mut GCUnion)).ts as *mut TString_0)).tt
+        *len = if (*(&mut (*((*o).value_.gc as *mut GCUnion)).ts as *mut TString)).tt
             as libc::c_int == 4i32 | 0i32 << 4i32
         {
             if (*o).tt_ & 0xfi32 == 4i32 {
@@ -2262,7 +2079,7 @@ pub unsafe extern "C" fn lua_tolstring(
             )).as_ptr(),
         );
     };
-    return (&mut (*((*o).value_.gc as *mut GCUnion)).ts as *mut TString_0 as *mut libc::c_char)
+    return (&mut (*((*o).value_.gc as *mut GCUnion)).ts as *mut TString as *mut libc::c_char)
         .offset(::std::mem::size_of::<UTString>() as libc::c_ulong as isize);
 }
 #[no_mangle]
@@ -4567,7 +4384,7 @@ pub unsafe extern "C" fn lua_rawgetp(
 ) -> libc::c_int {
     let mut t: StkId = 0 as *mut TValue;
     let mut k: TValue = lua_TValue {
-        value_: Value_0 {
+        value_: Value {
             gc: 0 as *const GCObject as *mut GCObject,
         },
         tt_: 0,
@@ -6420,7 +6237,7 @@ pub unsafe extern "C" fn lua_rawsetp(
 ) -> () {
     let mut o: StkId = 0 as *mut TValue;
     let mut k: TValue = lua_TValue {
-        value_: Value_0 {
+        value_: Value {
             gc: 0 as *const GCObject as *mut GCObject,
         },
         tt_: 0,

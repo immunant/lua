@@ -1,6 +1,7 @@
+use lstate::{lua_State};
+
 extern crate libc;
 extern "C" {
-    pub type lua_State;
     pub type _IO_FILE_plus;
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;

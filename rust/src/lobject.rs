@@ -1,6 +1,8 @@
+use lstate::{lua_State, global_State, CallInfo, stringtable};
+use lfunc::{UpVal};
+
 extern crate libc;
 extern "C" {
-    pub type UpVal;
     /*
     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
     ** Global State
@@ -151,7 +153,6 @@ pub type __sig_atomic_t = libc::c_int;
 /* extra stack space to handle TM calls and some other extras */
 /* kinds of Garbage Collection */
 /* gc was forced by an allocation failure */
-pub type stringtable = stringtable_0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Table {
@@ -176,39 +177,7 @@ pub struct Upvaldesc {
     pub instack: lu_byte,
     pub idx: lu_byte,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct lua_State {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nci: libc::c_ushort,
-    pub status: lu_byte,
-    pub top: StkId,
-    pub l_G: *mut global_State,
-    pub ci: *mut CallInfo,
-    pub oldpc: *const Instruction,
-    pub stack_last: StkId,
-    pub stack: StkId,
-    pub openupval: *mut UpVal_0,
-    pub gclist: *mut GCObject,
-    pub twups: *mut lua_State,
-    pub errorJmp: *mut lua_longjmp,
-    pub base_ci: CallInfo,
-    pub hook: lua_Hook,
-    pub errfunc: ptrdiff_t,
-    pub stacksize: libc::c_int,
-    pub basehookcount: libc::c_int,
-    pub hookcount: libc::c_int,
-    pub nny: libc::c_ushort,
-    pub nCcalls: libc::c_ushort,
-    pub hookmask: sig_atomic_t,
-    pub allowhook: lu_byte,
-}
 pub const TM_MUL: TMS = 8;
-/*
-** Bits in CallInfo status
-*/
 /* original value of 'allowhook' */
 /* call is running a Lua function */
 /* call is running a debug hook */
@@ -223,7 +192,6 @@ pub const TM_MUL: TMS = 8;
 /*
 ** 'global state', shared by all threads of this state
 */
-pub type global_State = global_State_0;
 /* only for Lua functions */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -246,6 +214,9 @@ pub union Closure {
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
+
+pub type lua_State_0 = lua_State;
+pub type CallInfo_0 = CallInfo;
 /*
 ** Type for memory-allocation functions
 */
@@ -287,7 +258,6 @@ pub type Value = Value_0;
 ** Header for string value; string bytes follow the end of this structure
 ** (aligned according to 'UTString'; see next).
 */
-pub type TString = TString_0;
 pub const TM_UNM: TMS = 18;
 pub type TValue = lua_TValue;
 /*
@@ -374,12 +344,12 @@ pub struct unnamed_1 {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union Value_0 {
-    gc: *mut GCObject,
-    p: *mut libc::c_void,
-    b: libc::c_int,
-    f: lua_CFunction,
-    i: lua_Integer,
-    n: lua_Number,
+    pub gc: *mut GCObject,
+    pub p: *mut libc::c_void,
+    pub b: libc::c_int,
+    pub f: lua_CFunction,
+    pub i: lua_Integer,
+    pub n: lua_Number,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -411,8 +381,8 @@ pub struct Proto {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_2 {
-    lnglen: size_t,
-    hnext: *mut TString_0,
+    pub lnglen: size_t,
+    pub hnext: *mut TString_0,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -473,8 +443,18 @@ pub struct GCObject_0 {
 ** (-LUAI_MAXSTACK is the minimum valid index; we keep some free empty
 ** space after that to help overflow detection)
 */
-/* thread status */
-pub type lua_State_0 = lua_State;
+pub type TString = TString_0;
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct TString_0 {
+    pub next: *mut GCObject,
+    pub tt: lu_byte,
+    pub marked: lu_byte,
+    pub extra: lu_byte,
+    pub shrlen: lu_byte,
+    pub hash: libc::c_uint,
+    pub u: unnamed_2,
+}
 /* only for C functions */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -505,7 +485,6 @@ pub const TM_SUB: TMS = 7;
 ** the function index so that, in case of errors, the continuation
 ** function can be called with the correct top.
 */
-pub type CallInfo = CallInfo_0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Memcontrol {
@@ -517,32 +496,8 @@ pub struct Memcontrol {
 }
 pub const TM_IDIV: TMS = 12;
 pub const TM_SHR: TMS = 17;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TString_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub extra: lu_byte,
-    pub shrlen: lu_byte,
-    pub hash: libc::c_uint,
-    pub u: unnamed_2,
-}
 pub const TM_GC: TMS = 2;
 pub const TM_MOD: TMS = 9;
-/* active function */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CallInfo_0 {
-    pub func: StkId,
-    pub top: StkId,
-    pub previous: *mut CallInfo_0,
-    pub next: *mut CallInfo_0,
-    pub u: unnamed_0,
-    pub extra: ptrdiff_t,
-    pub nresults: libc::c_short,
-    pub callstatus: libc::c_ushort,
-}
 pub const TM_NEWINDEX: TMS = 1;
 /*
 ** {==============================================================
@@ -692,44 +647,6 @@ pub union GCUnion {
 /* test for sizes in 'l_sprintf' (make sure whole buffer is available) */
 /* memory-allocator control variables */
 pub type Memcontrol_0 = Memcontrol;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct global_State_0 {
-    pub frealloc: lua_Alloc,
-    pub ud: *mut libc::c_void,
-    pub totalbytes: l_mem,
-    pub GCdebt: l_mem,
-    pub GCmemtrav: lu_mem,
-    pub GCestimate: lu_mem,
-    pub strt: stringtable,
-    pub l_registry: TValue,
-    pub seed: libc::c_uint,
-    pub currentwhite: lu_byte,
-    pub gcstate: lu_byte,
-    pub gckind: lu_byte,
-    pub gcrunning: lu_byte,
-    pub allgc: *mut GCObject,
-    pub sweepgc: *mut *mut GCObject,
-    pub finobj: *mut GCObject,
-    pub gray: *mut GCObject,
-    pub grayagain: *mut GCObject,
-    pub weak: *mut GCObject,
-    pub ephemeron: *mut GCObject,
-    pub allweak: *mut GCObject,
-    pub tobefnz: *mut GCObject,
-    pub fixedgc: *mut GCObject,
-    pub twups: *mut lua_State,
-    pub gcfinnum: libc::c_uint,
-    pub gcpause: libc::c_int,
-    pub gcstepmul: libc::c_int,
-    pub panic: lua_CFunction,
-    pub mainthread: *mut lua_State,
-    pub version: *const lua_Number,
-    pub memerrmsg: *mut TString,
-    pub tmname: [*mut TString; 24],
-    pub mt: [*mut Table; 9],
-    pub strcache: [[*mut TString; 5]; 23],
-}
 /* number of elements in the enum */
 pub const TM_N: TMS = 24;
 /*
@@ -776,13 +693,6 @@ pub struct lua_Debug_0 {
 ** Closures
 */
 pub type CClosure = CClosure_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct stringtable_0 {
-    pub hash: *mut *mut TString,
-    pub nuse: libc::c_int,
-    pub size: libc::c_int,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CClosure_0 {

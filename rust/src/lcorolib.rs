@@ -1,9 +1,8 @@
+use lstate::{CallInfo, lua_State};
+
 extern crate libc;
 extern "C" {
-    pub type lua_State;
     pub type _IO_FILE_plus;
-    /* active function */
-    pub type CallInfo;
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*

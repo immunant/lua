@@ -1,3 +1,6 @@
+use lstate::{CallInfo, lua_State, global_State};
+use lobject::{TValue, lua_TValue, Value, GCObject};
+
 extern crate libc;
 extern "C" {
     pub type _IO_FILE_plus;
@@ -268,35 +271,6 @@ pub type stringtable_0 = stringtable;
 pub type l_mem = ptrdiff_t;
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct lua_State {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nci: libc::c_ushort,
-    pub status: lu_byte,
-    pub top: StkId,
-    pub l_G: *mut global_State,
-    pub ci: *mut CallInfo_0,
-    pub oldpc: *const Instruction,
-    pub stack_last: StkId,
-    pub stack: StkId,
-    pub openupval: *mut UpVal,
-    pub gclist: *mut GCObject,
-    pub twups: *mut lua_State,
-    pub errorJmp: *mut lua_longjmp,
-    pub base_ci: CallInfo_0,
-    pub hook: lua_Hook,
-    pub errfunc: ptrdiff_t,
-    pub stacksize: libc::c_int,
-    pub basehookcount: libc::c_int,
-    pub hookcount: libc::c_int,
-    pub nny: libc::c_ushort,
-    pub nCcalls: libc::c_ushort,
-    pub hookmask: sig_atomic_t,
-    pub allowhook: lu_byte,
-}
 /* 16-bit ints */
  /* }{ */
 /* } */
@@ -348,33 +322,6 @@ pub struct lua_Debug_0 {
     pub short_src: [libc::c_char; 60],
     pub i_ci: *mut CallInfo,
 }
-/* active function */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CallInfo {
-    pub func: StkId,
-    pub top: StkId,
-    pub previous: *mut CallInfo,
-    pub next: *mut CallInfo,
-    pub u: unnamed,
-    pub extra: ptrdiff_t,
-    pub nresults: libc::c_short,
-    pub callstatus: libc::c_ushort,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union unnamed {
-    l: unnamed_1,
-    c: unnamed_0,
-}
-/* only for C functions */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct unnamed_0 {
-    pub k: lua_KFunction,
-    pub old_errfunc: ptrdiff_t,
-    pub ctx: lua_KContext,
-}
 /* type for continuation-function contexts */
 pub type lua_KContext = intptr_t;
 /*
@@ -398,13 +345,6 @@ pub type lua_KFunction = Option<
 */
 /* thread status */
 pub type lua_State_0 = lua_State;
-/* only for Lua functions */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct unnamed_1 {
-    pub base: StkId,
-    pub savedpc: *const Instruction,
-}
 /* internal assertions for in-house debugging */
 /* to avoid problems with conditions too long */
 /*
@@ -455,13 +395,6 @@ pub type Instruction = libc::c_uint;
 */
 /* index to stack elements */
 pub type StkId = *mut TValue;
-pub type TValue = lua_TValue;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct lua_TValue {
-    pub value_: Value,
-    pub tt_: libc::c_int,
-}
 /*
 ** Common Header for all collectable objects (in macro form, to be
 ** included in other objects)
@@ -476,17 +409,7 @@ pub struct lua_TValue {
 /*
 ** Union of all Lua values
 */
-pub type Value = Value_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Value_0 {
-    gc: *mut GCObject,
-    p: *mut libc::c_void,
-    b: libc::c_int,
-    f: lua_CFunction,
-    i: lua_Integer,
-    n: lua_Number,
-}
+pub type Value_0 = Value;
 /*
 ** basic types
 */
@@ -540,14 +463,7 @@ pub type lua_CFunction = Option<unsafe extern "C" fn(_: *mut lua_State_0) -> lib
 /*
 ** Common type for all collectable objects
 */
-pub type GCObject = GCObject_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GCObject_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-}
+pub type GCObject_0 = GCObject;
 /*
 ** Information about a call.
 ** When a thread yields, 'func' is adjusted to pretend that the
@@ -579,45 +495,7 @@ pub type UpVal = UpVal_0;
 /*
 ** 'global state', shared by all threads of this state
 */
-pub type global_State = global_State_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct global_State_0 {
-    pub frealloc: lua_Alloc,
-    pub ud: *mut libc::c_void,
-    pub totalbytes: l_mem,
-    pub GCdebt: l_mem,
-    pub GCmemtrav: lu_mem,
-    pub GCestimate: lu_mem,
-    pub strt: stringtable_0,
-    pub l_registry: TValue,
-    pub seed: libc::c_uint,
-    pub currentwhite: lu_byte,
-    pub gcstate: lu_byte,
-    pub gckind: lu_byte,
-    pub gcrunning: lu_byte,
-    pub allgc: *mut GCObject,
-    pub sweepgc: *mut *mut GCObject,
-    pub finobj: *mut GCObject,
-    pub gray: *mut GCObject,
-    pub grayagain: *mut GCObject,
-    pub weak: *mut GCObject,
-    pub ephemeron: *mut GCObject,
-    pub allweak: *mut GCObject,
-    pub tobefnz: *mut GCObject,
-    pub fixedgc: *mut GCObject,
-    pub twups: *mut lua_State,
-    pub gcfinnum: libc::c_uint,
-    pub gcpause: libc::c_int,
-    pub gcstepmul: libc::c_int,
-    pub panic: lua_CFunction,
-    pub mainthread: *mut lua_State,
-    pub version: *const lua_Number,
-    pub memerrmsg: *mut TString,
-    pub tmname: [*mut TString; 24],
-    pub mt: [*mut Table; 9],
-    pub strcache: [[*mut TString; 5]; 23],
-}
+pub type global_State_0 = global_State;
 /*
 ** Header for string value; string bytes follow the end of this structure
 ** (aligned according to 'UTString'; see next).

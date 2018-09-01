@@ -1,3 +1,8 @@
+use lobject::{GCObject, TValue, lua_TValue, Value, Table, StkId, TString};
+use ldebug::{lua_Debug};
+use ldo::{lua_longjmp};
+use lfunc::{UpVal};
+
 use std::boxed::Box;
 use std::convert::From;
 
@@ -23,7 +28,6 @@ extern "C" {
 
 */
     /* defined in ldo.c */
-    pub type lua_longjmp;
     #[no_mangle]
     fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
@@ -117,6 +121,7 @@ pub type size_t = libc::c_ulong;
 pub type __time_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
+pub type Value_0 = Value;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct lua_State {
@@ -177,26 +182,7 @@ pub type lua_Hook = Option<unsafe extern "C" fn(_: *mut lua_State_0, _: *mut lua
 /*
 ** Event masks
 */
-pub type lua_Debug = lua_Debug_0;
-/* activation record */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct lua_Debug_0 {
-    pub event: libc::c_int,
-    pub name: *const libc::c_char,
-    pub namewhat: *const libc::c_char,
-    pub what: *const libc::c_char,
-    pub source: *const libc::c_char,
-    pub currentline: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
-    pub nups: libc::c_uchar,
-    pub nparams: libc::c_uchar,
-    pub isvararg: libc::c_char,
-    pub istailcall: libc::c_char,
-    pub short_src: [libc::c_char; 60],
-    pub i_ci: *mut CallInfo,
-}
+pub type lua_Debug_0 = lua_Debug;
 /* active function */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -213,8 +199,8 @@ pub struct CallInfo {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed {
-    l: unnamed_1,
-    c: unnamed_0,
+    pub l: unnamed_1,
+    pub c: unnamed_0,
 }
 /* only for C functions */
 #[derive(Copy, Clone)]
@@ -303,14 +289,6 @@ pub type Instruction = libc::c_uint;
 ** =======================================================
 */
 /* index to stack elements */
-pub type StkId = *mut TValue;
-pub type TValue = lua_TValue;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct lua_TValue {
-    pub value_: Value,
-    pub tt_: libc::c_int,
-}
 /*
 ** Common Header for all collectable objects (in macro form, to be
 ** included in other objects)
@@ -325,17 +303,6 @@ pub struct lua_TValue {
 /*
 ** Union of all Lua values
 */
-pub type Value = Value_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Value_0 {
-    gc: *mut GCObject,
-    p: *mut libc::c_void,
-    b: libc::c_int,
-    f: lua_CFunction,
-    i: lua_Integer,
-    n: lua_Number,
-}
 /*
 ** basic types
 */
@@ -389,14 +356,7 @@ pub type lua_CFunction = Option<unsafe extern "C" fn(_: *mut lua_State_0) -> lib
 /*
 ** Common type for all collectable objects
 */
-pub type GCObject = GCObject_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GCObject_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-}
+pub type GCObject_0 = GCObject;
 /*
 ** Information about a call.
 ** When a thread yields, 'func' is adjusted to pretend that the
@@ -410,19 +370,12 @@ pub type CallInfo_0 = CallInfo;
 /*
 ** Lua Upvalues
 */
-pub type UpVal = UpVal_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UpVal_0 {
-    pub v: *mut TValue,
-    pub refcount: lu_mem,
-    pub u: unnamed_2,
-}
+pub type UpVal_0 = UpVal;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_2 {
-    open: unnamed_3,
-    value: TValue,
+    pub open: unnamed_3,
+    pub value: TValue,
 }
 /* (when open) */
 #[derive(Copy, Clone)]
@@ -504,38 +457,12 @@ pub struct global_State_0 {
 ** Header for string value; string bytes follow the end of this structure
 ** (aligned according to 'UTString'; see next).
 */
-pub type TString = TString_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TString_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub extra: lu_byte,
-    pub shrlen: lu_byte,
-    pub hash: libc::c_uint,
-    pub u: unnamed_4,
-}
+pub type TString_0 = TString;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_4 {
-    lnglen: size_t,
-    hnext: *mut TString_0,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Table {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub flags: lu_byte,
-    pub lsizenode: lu_byte,
-    pub sizearray: libc::c_uint,
-    pub array: *mut TValue,
-    pub node: *mut Node,
-    pub lastfree: *mut Node,
-    pub metatable: *mut Table,
-    pub gclist: *mut GCObject,
+    pub lnglen: size_t,
+    pub hnext: *mut TString_0,
 }
 /* copy a value into a key without messing up field 'next' */
 pub type Node = Node_0;
@@ -1544,8 +1471,8 @@ impl From<i32> for unnamed {
     }
 }
 
-pub extern "C" fn luaE_newCI(size: size_t) -> *mut CallInfo_0 {
-    let mut ci = Box::new(CallInfo {
+pub extern "C" fn luaE_newCI(size: size_t) -> Box<CallInfo_0> {
+    let ci = Box::new(CallInfo {
         func: 0 as StkId,
         top: 0 as StkId,
         previous: 0 as *mut CallInfo,
@@ -1555,12 +1482,12 @@ pub extern "C" fn luaE_newCI(size: size_t) -> *mut CallInfo_0 {
         nresults: 0 as libc::c_short,
         callstatus: 0 as libc::c_ushort,
     });
-    Box::into_raw(ci)
+    ci
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State_0) -> *mut CallInfo_0 {
-    let mut ci: *mut CallInfo_0 = luaE_newCI(::std::mem::size_of::<CallInfo_0>() as libc::c_ulong,);
+    let ci_box: Box<CallInfo_0> = luaE_newCI(::std::mem::size_of::<CallInfo_0>() as libc::c_ulong,);
     if (*(*L).ci).next.is_null() {
     } else {
         __assert_fail(
@@ -1572,12 +1499,14 @@ pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State_0) -> *mut CallInfo
             )).as_ptr(),
         );
     };
+    let mut ci = Box::into_raw(ci_box);
     (*(*L).ci).next = ci;
     (*ci).previous = (*L).ci;
     (*ci).next = 0 as *mut CallInfo;
     (*L).nci = (*L).nci.wrapping_add(1);
     return ci;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn luaE_shrinkCI(mut L: *mut lua_State_0) -> () {
     let mut ci: *mut CallInfo_0 = (*L).ci;
