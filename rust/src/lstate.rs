@@ -138,7 +138,7 @@ pub struct lua_State {
     pub status: lu_byte,
     pub top: StkId,
     pub l_G: *mut global_State,
-    pub ci: *mut CallInfo,
+    pub ci: Option<Box<CallInfo>>,
     pub oldpc: *const Instruction,
     pub stack_last: StkId,
     pub stack: StkId,
@@ -175,7 +175,7 @@ pub struct CallInfo {
     pub func: StkId,
     pub top: StkId,
     pub previous: *mut CallInfo,
-    pub next: *mut CallInfo,
+    pub next: Option<Box<CallInfo>>,
     pub u: unnamed,
     pub extra: ptrdiff_t,
     pub nresults: libc::c_short,
@@ -1315,7 +1315,7 @@ impl From<i32> for unnamed {
     }
 }
 
-pub extern "C" fn luaE_newCI(size: size_t) -> Box<CallInfo> {
+pub extern "C" fn luaE_newCI() -> Box<CallInfo> {
     let ci = Box::new(CallInfo {
         func: 0 as StkId,
         top: 0 as StkId,
@@ -1330,8 +1330,8 @@ pub extern "C" fn luaE_newCI(size: size_t) -> Box<CallInfo> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
-    let ci_box: Box<CallInfo> = luaE_newCI(::std::mem::size_of::<CallInfo>() as libc::c_ulong);
+pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> Box<CallInfo> {
+    let ci: Box<CallInfo> = luaE_newCI();
     if (*(*L).ci).next.is_null() {
     } else {
         __assert_fail(
@@ -1343,7 +1343,6 @@ pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
             )).as_ptr(),
         );
     };
-    let mut ci = Box::into_raw(ci_box);
     (*(*L).ci).next = ci;
     (*ci).previous = (*L).ci;
     (*ci).next = 0 as *mut CallInfo;
