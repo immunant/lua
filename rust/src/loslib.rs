@@ -1,13 +1,13 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -80,16 +80,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -233,7 +233,7 @@ pub struct tm {
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -1105,12 +1105,11 @@ unsafe extern "C" fn os_difftime(mut L: *mut lua_State_0) -> libc::c_int {
 */
 unsafe extern "C" fn l_checktime(mut L: *mut lua_State_0, mut arg: libc::c_int) -> time_t {
     let mut t: lua_Integer = luaL_checkinteger(L, arg);
-    (t as time_t as libc::c_longlong == t
-        || 0 != luaL_argerror(
-            L,
-            arg,
-            b"time out-of-bounds\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (t as time_t as libc::c_longlong == t || 0 != luaL_argerror(
+        L,
+        arg,
+        b"time out-of-bounds\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     return t as time_t;
 }
 /* maximum size for an individual 'strftime' item */

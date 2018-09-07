@@ -1,13 +1,16 @@
-use lobject::{GCObject, TValue, Value, unnamed, TString};
-use lstate::{lua_State, global_State, CallInfo, stringtable};
+use lobject::{
+    unnamed, CClosure, Closure, GCObject, LClosure, LocVar, Proto, TString, TValue, Upvaldesc,
+    Value,
+};
+use lstate::{global_State, lua_State, stringtable, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -34,16 +37,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -67,7 +70,7 @@ pub type size_t = libc::c_ulong;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -389,47 +392,6 @@ pub type lua_Alloc = Option<
         -> *mut libc::c_void,
 >;
 /*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Proto {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub numparams: lu_byte,
-    pub is_vararg: lu_byte,
-    pub maxstacksize: lu_byte,
-    pub sizeupvalues: libc::c_int,
-    pub sizek: libc::c_int,
-    pub sizecode: libc::c_int,
-    pub sizelineinfo: libc::c_int,
-    pub sizep: libc::c_int,
-    pub sizelocvars: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
-    pub k: *mut TValue,
-    pub code: *mut Instruction,
-    pub p: *mut *mut Proto,
-    pub lineinfo: *mut libc::c_int,
-    pub locvars: *mut LocVar,
-    pub upvalues: *mut Upvaldesc_0,
-    pub cache: *mut LClosure_0,
-    pub source: *mut TString,
-    pub gclist: *mut GCObject,
-}
-/*
 ** Function Prototypes
 */
 pub type Proto_0 = Proto;
@@ -437,7 +399,7 @@ pub type Proto_0 = Proto;
 ** Description of a local variable for function prototypes
 ** (used for debug information)
 */
-pub type LocVar = LocVar_0;
+pub type LocVar_0 = LocVar;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Memcontrol {
@@ -458,47 +420,8 @@ pub struct Memcontrol {
 /* test for sizes in 'l_sprintf' (make sure whole buffer is available) */
 /* memory-allocator control variables */
 pub type Memcontrol_0 = Memcontrol;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub f: lua_CFunction,
-    pub upvalue: [TValue; 0],
-}
-pub type LClosure = LClosure_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Closure {
-    c: CClosure_0,
-    l: LClosure,
-}
-/* last-created closure with this prototype */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LClosure_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub p: *mut Proto,
-    pub upvals: [*mut UpVal; 0],
-}
-/*
-** Closures
-*/
+pub type LClosure_0 = LClosure;
 pub type CClosure_0 = CClosure;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LocVar_0 {
-    pub varname: *mut TString,
-    pub startpc: libc::c_int,
-    pub endpc: libc::c_int,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union L_Umaxalign {
@@ -524,13 +447,6 @@ pub struct Udata {
     pub metatable: *mut Table,
     pub len: size_t,
     pub user_: Value,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Upvaldesc {
-    pub name: *mut TString,
-    pub instack: lu_byte,
-    pub idx: lu_byte,
 }
 /*
 **  Get the address of memory block inside 'Udata'.
@@ -767,21 +683,25 @@ pub unsafe extern "C" fn luaF_close(mut L: *mut lua_State_0, mut level: StkId) -
                         )).as_ptr(),
                     );
                 };
-                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"lfunc.c\x00" as *const u8 as *const libc::c_char,
-                            91i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 36], &[libc::c_char; 36]>(
-                                b"void luaF_close(lua_State *, StkId)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io1)->tt_) & (1 << 6))\x00" as *const u8
+                                    as *const libc::c_char,
+                                b"lfunc.c\x00" as *const u8 as *const libc::c_char,
+                                91i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 36], &[libc::c_char; 36]>(
+                                    b"void luaF_close(lua_State *, StkId)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io1).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {

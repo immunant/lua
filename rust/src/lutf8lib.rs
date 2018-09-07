@@ -1,13 +1,13 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -29,16 +29,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -129,7 +129,7 @@ pub struct luaL_Reg {
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -717,19 +717,17 @@ unsafe extern "C" fn utflen(mut L: *mut lua_State_0) -> libc::c_int {
     (1i32 as libc::c_longlong <= posi && {
         posi -= 1;
         posi <= len as lua_Integer
-    }
-        || 0 != luaL_argerror(
-            L,
-            2i32,
-            b"initial position out of string\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    } || 0 != luaL_argerror(
+        L,
+        2i32,
+        b"initial position out of string\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     posj -= 1;
-    (posj < len as lua_Integer
-        || 0 != luaL_argerror(
-            L,
-            3i32,
-            b"final position out of string\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (posj < len as lua_Integer || 0 != luaL_argerror(
+        L,
+        3i32,
+        b"final position out of string\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     while posi <= posj {
         let mut s1: *const libc::c_char =
             utf8_decode(s.offset(posi as isize), 0 as *mut libc::c_int);
@@ -818,18 +816,16 @@ unsafe extern "C" fn codepoint(mut L: *mut lua_State_0) -> libc::c_int {
     let mut pose: lua_Integer = u_posrelat(luaL_optinteger(L, 3i32, posi), len);
     let mut n: libc::c_int = 0;
     let mut se: *const libc::c_char = 0 as *const libc::c_char;
-    (posi >= 1i32 as libc::c_longlong
-        || 0 != luaL_argerror(
-            L,
-            2i32,
-            b"out of range\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
-    (pose <= len as lua_Integer
-        || 0 != luaL_argerror(
-            L,
-            3i32,
-            b"out of range\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (posi >= 1i32 as libc::c_longlong || 0 != luaL_argerror(
+        L,
+        2i32,
+        b"out of range\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
+    (pose <= len as lua_Integer || 0 != luaL_argerror(
+        L,
+        3i32,
+        b"out of range\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     if posi > pose {
         /* empty interval; return no values */
         return 0i32;
@@ -881,12 +877,11 @@ unsafe extern "C" fn byteoffset(mut L: *mut lua_State_0) -> libc::c_int {
     (1i32 as libc::c_longlong <= posi && {
         posi -= 1;
         posi <= len as lua_Integer
-    }
-        || 0 != luaL_argerror(
-            L,
-            3i32,
-            b"position out of range\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    } || 0 != luaL_argerror(
+        L,
+        3i32,
+        b"position out of range\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     if n == 0i32 as libc::c_longlong {
         /* find beginning of current byte sequence */
         while posi > 0i32 as libc::c_longlong

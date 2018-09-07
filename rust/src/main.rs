@@ -4,11 +4,11 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #![allow(unused_mut)]
-
 #![feature(extern_types)]
 #![feature(libc)]
 #![feature(const_slice_as_ptr)]
 #![feature(ptr_wrapping_offset_from)]
+#![feature(untagged_unions)]
 
 extern crate libc;
 pub mod lapi;
@@ -47,4 +47,6 @@ pub mod lutf8lib;
 pub mod lvm;
 pub mod lzio;
 
-fn main() -> () { lua::main() }
+fn main() -> () {
+    lua::main()
+}

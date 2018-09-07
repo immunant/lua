@@ -1,13 +1,13 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -38,16 +38,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -116,7 +116,7 @@ pub type ptrdiff_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -540,17 +540,6 @@ pub type ZIO = Zio;
 */
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct LoadState {
     pub L: *mut lua_State_0,
     pub Z: *mut ZIO,
@@ -662,21 +651,22 @@ pub unsafe extern "C" fn luaU_undump(
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lundump.c\x00" as *const u8 as *const libc::c_char,
-                    272i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 56], &[libc::c_char; 56]>(
-                        b"LClosure *luaU_undump(lua_State *, ZIO *, const char *)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lundump.c\x00" as *const u8 as *const libc::c_char,
+                        272i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 56], &[libc::c_char; 56]>(
+                            b"LClosure *luaU_undump(lua_State *, ZIO *, const char *)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -1128,9 +1118,12 @@ unsafe extern "C" fn checkHeader(mut S: *mut LoadState) -> () {
     );
     if LoadByte(S) as libc::c_int
         != ((*::std::mem::transmute::<&[u8; 2], &[libc::c_char; 2]>(b"5\x00"))[0usize]
-            as libc::c_int - '0' as i32) * 16i32
+            as libc::c_int
+            - '0' as i32)
+            * 16i32
             + ((*::std::mem::transmute::<&[u8; 2], &[libc::c_char; 2]>(b"3\x00"))[0usize]
-                as libc::c_int - '0' as i32)
+                as libc::c_int
+                - '0' as i32)
     {
         error(
             S,

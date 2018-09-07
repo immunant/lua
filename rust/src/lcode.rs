@@ -1,5 +1,5 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
@@ -7,10 +7,10 @@ extern "C" {
     /* defined in lparser.c */
     pub type BlockCnt;
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -42,16 +42,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -351,20 +351,6 @@ pub struct LexState {
     pub envn: *mut TString,
 }
 pub const OPR_NOT: UnOpr_0 = 2;
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto_0,
-    th: lua_State,
-}
 pub type size_t = libc::c_ulong;
 /*	A B C	R(A) := (Bool)B; if (C) pc++			*/
 pub const OP_LOADBOOL: OpCode = 3;
@@ -424,7 +410,7 @@ pub struct Token_0 {
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -1081,7 +1067,8 @@ unsafe extern "C" fn patchlistaux(
 unsafe extern "C" fn getjump(mut fs: *mut FuncState_0, mut pc: libc::c_int) -> libc::c_int {
     let mut offset: libc::c_int = (*(*(*fs).f).code.offset(pc as isize) >> 0i32 + 6i32 + 8i32
         & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
-        as libc::c_int - ((1i32 << 9i32 + 9i32) - 1i32 >> 1i32);
+        as libc::c_int
+        - ((1i32 << 9i32 + 9i32) - 1i32 >> 1i32);
     /* point to itself represents end of list */
     if offset == -1i32 {
         /* end of list */
@@ -1145,8 +1132,9 @@ unsafe extern "C" fn patchtestreg(
         return 0i32;
     } else {
         if reg != (1i32 << 8i32) - 1i32
-            && reg != (*i >> 0i32 + 6i32 + 8i32 + 9i32
-                & !((!(0i32 as Instruction)) << 9i32) << 0i32) as libc::c_int
+            && reg
+                != (*i >> 0i32 + 6i32 + 8i32 + 9i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                    as libc::c_int
         {
             *i = *i & !(!((!(0i32 as Instruction)) << 8i32) << 0i32 + 6i32)
                 | (reg as Instruction) << 0i32 + 6i32
@@ -1154,10 +1142,12 @@ unsafe extern "C" fn patchtestreg(
         } else {
             *i = (OP_TEST as libc::c_int as Instruction) << 0i32
                 | ((*i >> 0i32 + 6i32 + 8i32 + 9i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                    as libc::c_int as Instruction) << 0i32 + 6i32
+                    as libc::c_int as Instruction)
+                    << 0i32 + 6i32
                 | (0i32 as Instruction) << 0i32 + 6i32 + 8i32 + 9i32
                 | ((*i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                    as libc::c_int as Instruction) << 0i32 + 6i32 + 8i32
+                    as libc::c_int as Instruction)
+                    << 0i32 + 6i32 + 8i32
         }
         return 1i32;
     };
@@ -1175,7 +1165,8 @@ unsafe extern "C" fn getjumpcontrol(
     if pc >= 1i32
         && 0 != luaP_opmodes[(*pi.offset(-1isize) >> 0i32
                                  & !((!(0i32 as Instruction)) << 6i32) << 0i32)
-                                 as OpCode as usize] as libc::c_int & 1i32 << 7i32
+                                 as OpCode as usize] as libc::c_int
+            & 1i32 << 7i32
     {
         return pi.offset(-1isize);
     } else {
@@ -1205,7 +1196,8 @@ pub unsafe extern "C" fn luaK_codeABC(
         );
     };
     if (luaP_opmodes[o as usize] as libc::c_int >> 4i32 & 3i32) as OpArgMask as libc::c_uint
-        != OpArgN as libc::c_int as libc::c_uint || b == 0i32
+        != OpArgN as libc::c_int as libc::c_uint
+        || b == 0i32
     {
     } else {
         __assert_fail(
@@ -1219,7 +1211,8 @@ pub unsafe extern "C" fn luaK_codeABC(
         );
     };
     if (luaP_opmodes[o as usize] as libc::c_int >> 2i32 & 3i32) as OpArgMask as libc::c_uint
-        != OpArgN as libc::c_int as libc::c_uint || c == 0i32
+        != OpArgN as libc::c_int as libc::c_uint
+        || c == 0i32
     {
     } else {
         __assert_fail(
@@ -1303,7 +1296,8 @@ pub unsafe extern "C" fn luaK_nil(
         /* no jumps to current position? */
         previous = &mut *(*(*fs).f).code.offset(((*fs).pc - 1i32) as isize) as *mut Instruction;
         if (*previous >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
-            as libc::c_uint == OP_LOADNIL as libc::c_int as libc::c_uint
+            as libc::c_uint
+            == OP_LOADNIL as libc::c_int as libc::c_uint
         {
             /* previous is LOADNIL? */
             /* get previous range */
@@ -1508,21 +1502,22 @@ unsafe extern "C" fn addk(
                 )).as_ptr(),
             );
         };
-        (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io1).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lcode.c\x00" as *const u8 as *const libc::c_char,
-                    448i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
-                        b"int addk(FuncState *, TValue *, TValue *)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lcode.c\x00" as *const u8 as *const libc::c_char,
+                        448i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
+                            b"int addk(FuncState *, TValue *, TValue *)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -1656,7 +1651,8 @@ pub unsafe extern "C" fn luaK_setoneret(mut fs: *mut FuncState_0, mut e: *mut ex
     if (*e).k as libc::c_uint == VCALL as libc::c_int as libc::c_uint {
         /* expression is an open function call? */
         if (*(*(*fs).f).code.offset((*e).u.info as isize) >> 0i32 + 6i32 + 8i32
-            & !((!(0i32 as Instruction)) << 9i32) << 0i32) as libc::c_int == 2i32
+            & !((!(0i32 as Instruction)) << 9i32) << 0i32) as libc::c_int
+            == 2i32
         {
         } else {
             __assert_fail(b"(((int)(((((fs)->f->code[(e)->u.info]))>>((0 + 6) + 8)) & ((~((~(Instruction)0)<<(9)))<<(0))))) == 2\x00"
@@ -2252,7 +2248,8 @@ unsafe extern "C" fn negatecondition(mut fs: *mut FuncState_0, mut e: *mut expde
     let mut pc: *mut Instruction = getjumpcontrol(fs, (*e).u.info);
     if 0 != luaP_opmodes
         [(*pc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode as usize]
-        as libc::c_int & 1i32 << 7i32
+        as libc::c_int
+        & 1i32 << 7i32
         && (*pc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode as libc::c_uint
             != OP_TESTSET as libc::c_int as libc::c_uint
         && (*pc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode as libc::c_uint
@@ -2268,7 +2265,8 @@ unsafe extern "C" fn negatecondition(mut fs: *mut FuncState_0, mut e: *mut expde
     };
     *pc = *pc & !(!((!(0i32 as Instruction)) << 8i32) << 0i32 + 6i32)
         | ((0 == (*pc >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32) as libc::c_int)
-            as libc::c_int as Instruction) << 0i32 + 6i32
+            as libc::c_int as Instruction)
+            << 0i32 + 6i32
             & !((!(0i32 as Instruction)) << 8i32) << 0i32 + 6i32;
 }
 #[no_mangle]
@@ -2430,7 +2428,8 @@ pub unsafe extern "C" fn luaK_patchclose(
                 & !((!(0i32 as Instruction)) << 8i32) << 0i32) as libc::c_int
                 == 0i32
                 || (*(*(*fs).f).code.offset(list as isize) >> 0i32 + 6i32
-                    & !((!(0i32 as Instruction)) << 8i32) << 0i32) as libc::c_int
+                    & !((!(0i32 as Instruction)) << 8i32) << 0i32)
+                    as libc::c_int
                     >= level)
         {
         } else {
@@ -2888,12 +2887,14 @@ pub unsafe extern "C" fn luaK_posfix(
             if (*e2).k as libc::c_uint == VRELOCABLE as libc::c_int as libc::c_uint
                 && (*(*(*fs).f).code.offset((*e2).u.info as isize) >> 0i32
                     & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
-                    as libc::c_uint == OP_CONCAT as libc::c_int as libc::c_uint
+                    as libc::c_uint
+                    == OP_CONCAT as libc::c_int as libc::c_uint
             {
                 if (*e1).u.info
                     == (*(*(*fs).f).code.offset((*e2).u.info as isize) >> 0i32 + 6i32 + 8i32 + 9i32
                         & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int - 1i32
+                        as libc::c_int
+                        - 1i32
                 {
                 } else {
                     __assert_fail(b"e1->u.info == (((int)(((((fs)->f->code[(e2)->u.info]))>>(((0 + 6) + 8) + 9)) & ((~((~(Instruction)0)<<(9)))<<(0)))))-1\x00"

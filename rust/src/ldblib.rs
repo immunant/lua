@@ -1,14 +1,14 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
     pub type _IO_FILE_plus;
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -60,16 +60,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -302,7 +302,7 @@ pub type FILE = _IO_FILE;
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -818,12 +818,11 @@ unsafe extern "C" fn auxupvalue(mut L: *mut lua_State_0, mut get: libc::c_int) -
 }
 unsafe extern "C" fn db_setmetatable(mut L: *mut lua_State_0) -> libc::c_int {
     let mut t: libc::c_int = lua_type(L, 2i32);
-    (t == 0i32 || t == 5i32
-        || 0 != luaL_argerror(
-            L,
-            2i32,
-            b"nil or table expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (t == 0i32 || t == 5i32 || 0 != luaL_argerror(
+        L,
+        2i32,
+        b"nil or table expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     lua_settop(L, 2i32);
     lua_setmetatable(L, 1i32);
     /* return 1st argument */
@@ -1042,29 +1041,26 @@ unsafe extern "C" fn checkupval(
     let mut nup: libc::c_int = luaL_checkinteger(L, argnup) as libc::c_int;
     /* closure */
     luaL_checktype(L, argf, 6i32);
-    (!lua_getupvalue(L, argf, nup).is_null()
-        || 0 != luaL_argerror(
-            L,
-            argnup,
-            b"invalid upvalue index\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (!lua_getupvalue(L, argf, nup).is_null() || 0 != luaL_argerror(
+        L,
+        argnup,
+        b"invalid upvalue index\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     return nup;
 }
 unsafe extern "C" fn db_upvaluejoin(mut L: *mut lua_State_0) -> libc::c_int {
     let mut n1: libc::c_int = checkupval(L, 1i32, 2i32);
     let mut n2: libc::c_int = checkupval(L, 3i32, 4i32);
-    (0 == lua_iscfunction(L, 1i32)
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"Lua function expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
-    (0 == lua_iscfunction(L, 3i32)
-        || 0 != luaL_argerror(
-            L,
-            3i32,
-            b"Lua function expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (0 == lua_iscfunction(L, 1i32) || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"Lua function expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
+    (0 == lua_iscfunction(L, 3i32) || 0 != luaL_argerror(
+        L,
+        3i32,
+        b"Lua function expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     lua_upvaluejoin(L, 1i32, n1, 3i32, n2);
     return 0i32;
 }

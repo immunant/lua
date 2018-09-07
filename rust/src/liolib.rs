@@ -1,14 +1,14 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
     pub type _IO_FILE_plus;
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -105,16 +105,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -374,7 +374,7 @@ pub type LStream = luaL_Stream_0;
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -1068,12 +1068,11 @@ unsafe extern "C" fn f_seek(mut L: *mut lua_State_0) -> libc::c_int {
     );
     let mut p3: lua_Integer = luaL_optinteger(L, 3i32, 0i32 as lua_Integer);
     let mut offset: off_t = p3 as off_t;
-    (offset as lua_Integer == p3
-        || 0 != luaL_argerror(
-            L,
-            3i32,
-            b"not an integer in proper range\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (offset as lua_Integer == p3 || 0 != luaL_argerror(
+        L,
+        3i32,
+        b"not an integer in proper range\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     op = fseeko(f, offset, mode[op as usize]);
     if 0 != op {
         /* error */
@@ -1212,10 +1211,12 @@ unsafe extern "C" fn read_line(
         let mut i: libc::c_int = 0i32;
         flockfile(f);
         /* no memory errors can happen inside the lock */
-        while i < 23i32 && {
-            c = getc_unlocked(f);
-            c != -1i32
-        } && c != '\n' as i32
+        while i < 23i32
+            && {
+                c = getc_unlocked(f);
+                c != -1i32
+            }
+            && c != '\n' as i32
         {
             let fresh2 = i;
             i = i + 1;
@@ -1262,8 +1263,9 @@ unsafe extern "C" fn read_number(mut L: *mut lua_State_0, mut f: *mut FILE) -> l
     loop {
         /* skip spaces */
         rn.c = getc_unlocked(rn.f);
-        if !(0 != *(*__ctype_b_loc()).offset(rn.c as isize) as libc::c_int
-            & _ISspace as libc::c_int as libc::c_ushort as libc::c_int)
+        if !(0
+            != *(*__ctype_b_loc()).offset(rn.c as isize) as libc::c_int
+                & _ISspace as libc::c_int as libc::c_ushort as libc::c_int)
         {
             break;
         }
@@ -1285,15 +1287,14 @@ unsafe extern "C" fn read_number(mut L: *mut lua_State_0, mut f: *mut FILE) -> l
         /* fractional part */
         count += readdigits(&mut rn, hex)
     }
-    if count > 0i32
-        && 0 != test2(
-            &mut rn,
-            if 0 != hex {
-                b"pP\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"eE\x00" as *const u8 as *const libc::c_char
-            },
-        ) {
+    if count > 0i32 && 0 != test2(
+        &mut rn,
+        if 0 != hex {
+            b"pP\x00" as *const u8 as *const libc::c_char
+        } else {
+            b"eE\x00" as *const u8 as *const libc::c_char
+        },
+    ) {
         /* exponent mark? */
         /* exponent signal */
         test2(&mut rn, b"-+\x00" as *const u8 as *const libc::c_char);
@@ -1417,12 +1418,11 @@ unsafe extern "C" fn f_lines(mut L: *mut lua_State_0) -> libc::c_int {
 unsafe extern "C" fn aux_lines(mut L: *mut lua_State_0, mut toclose: libc::c_int) -> () {
     /* number of arguments to read */
     let mut n: libc::c_int = lua_gettop(L) - 1i32;
-    (n <= 250i32
-        || 0 != luaL_argerror(
-            L,
-            250i32 + 2i32,
-            b"too many arguments\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (n <= 250i32 || 0 != luaL_argerror(
+        L,
+        250i32 + 2i32,
+        b"too many arguments\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     /* number of arguments to read */
     lua_pushinteger(L, n as lua_Integer);
     /* close/not close file when finished */
@@ -1721,12 +1721,11 @@ unsafe extern "C" fn io_open(mut L: *mut lua_State_0) -> libc::c_int {
     let mut p: *mut LStream = newfile(L);
     /* to traverse/check mode */
     let mut md: *const libc::c_char = mode;
-    (0 != l_checkmode(md)
-        || 0 != luaL_argerror(
-            L,
-            2i32,
-            b"invalid mode\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (0 != l_checkmode(md) || 0 != luaL_argerror(
+        L,
+        2i32,
+        b"invalid mode\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     (*p).f = fopen(filename, mode);
     return if (*p).f.is_null() {
         luaL_fileresult(L, 0i32, filename)
@@ -1746,17 +1745,20 @@ unsafe extern "C" fn io_open(mut L: *mut lua_State_0) -> libc::c_int {
 /* accepted extensions to 'mode' in 'fopen' */
 /* Check whether 'mode' matches '[rwa]%+?[L_MODEEXT]*' */
 unsafe extern "C" fn l_checkmode(mut mode: *const libc::c_char) -> libc::c_int {
-    return (*mode as libc::c_int != '\u{0}' as i32 && {
-        let fresh5 = mode;
-        mode = mode.offset(1);
-        !strchr(
-            b"rwa\x00" as *const u8 as *const libc::c_char,
-            *fresh5 as libc::c_int,
-        ).is_null()
-    } && (*mode as libc::c_int != '+' as i32 || {
-        mode = mode.offset(1isize);
-        0 != 1i32
-    }) && strspn(mode, b"b\x00" as *const u8 as *const libc::c_char) == strlen(mode))
+    return (*mode as libc::c_int != '\u{0}' as i32
+        && {
+            let fresh5 = mode;
+            mode = mode.offset(1);
+            !strchr(
+                b"rwa\x00" as *const u8 as *const libc::c_char,
+                *fresh5 as libc::c_int,
+            ).is_null()
+        }
+        && (*mode as libc::c_int != '+' as i32 || {
+            mode = mode.offset(1isize);
+            0 != 1i32
+        })
+        && strspn(mode, b"b\x00" as *const u8 as *const libc::c_char) == strlen(mode))
         as libc::c_int;
 }
 unsafe extern "C" fn io_lines(mut L: *mut lua_State_0) -> libc::c_int {

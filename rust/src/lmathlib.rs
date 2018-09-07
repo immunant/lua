@@ -1,14 +1,14 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
     pub type _IO_FILE_plus;
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -65,16 +65,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -272,7 +272,7 @@ pub type l_mem = ptrdiff_t;
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -780,18 +780,16 @@ unsafe extern "C" fn math_random(mut L: *mut lua_State_0) -> libc::c_int {
             )
         }
     }
-    (low <= up
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"interval is empty\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
-    (low >= 0i32 as libc::c_longlong || up <= 9223372036854775807i64 + low
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"interval too large\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (low <= up || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"interval is empty\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
+    (low >= 0i32 as libc::c_longlong || up <= 9223372036854775807i64 + low || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"interval too large\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     /* random integer in the interval [low, up] */
     r *= (up - low) as libc::c_double + 1.0f64;
     lua_pushinteger(L, r as lua_Integer + low);
@@ -835,10 +833,11 @@ unsafe extern "C" fn pushnumint(mut L: *mut lua_State_0, mut d: lua_Number) -> (
     let mut n: lua_Integer = 0;
     /* does 'd' fit in an integer? */
     if d >= (-9223372036854775807i64 - 1i64) as libc::c_double
-        && d < -((-9223372036854775807i64 - 1i64) as libc::c_double) && {
-        n = d as libc::c_longlong;
-        0 != 1i32
-    } {
+        && d < -((-9223372036854775807i64 - 1i64) as libc::c_double)
+        && {
+            n = d as libc::c_longlong;
+            0 != 1i32
+        } {
         /* result is integer */
         lua_pushinteger(L, n);
     } else {
@@ -852,12 +851,11 @@ unsafe extern "C" fn math_min(mut L: *mut lua_State_0) -> libc::c_int {
     /* index of current minimum value */
     let mut imin: libc::c_int = 1i32;
     let mut i: libc::c_int = 0;
-    (n >= 1i32
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"value expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (n >= 1i32 || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"value expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     i = 2i32;
     while i <= n {
         if 0 != lua_compare(L, i, imin, 1i32) {
@@ -874,12 +872,11 @@ unsafe extern "C" fn math_max(mut L: *mut lua_State_0) -> libc::c_int {
     /* index of current maximum value */
     let mut imax: libc::c_int = 1i32;
     let mut i: libc::c_int = 0;
-    (n >= 1i32
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"value expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (n >= 1i32 || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"value expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     i = 2i32;
     while i <= n {
         if 0 != lua_compare(L, imax, i, 1i32) {

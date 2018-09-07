@@ -1,14 +1,14 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value};
+use lobject::{lua_TValue, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
     pub type _IO_FILE_plus;
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -51,16 +51,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -289,7 +289,7 @@ pub type FILE = _IO_FILE;
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -836,12 +836,11 @@ unsafe extern "C" fn finishpcall(
 }
 unsafe extern "C" fn luaB_type(mut L: *mut lua_State_0) -> libc::c_int {
     let mut t: libc::c_int = lua_type(L, 1i32);
-    (t != -1i32
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"value expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (t != -1i32 || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"value expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     lua_pushstring(L, lua_typename(L, t));
     return 1i32;
 }
@@ -920,10 +919,10 @@ unsafe extern "C" fn b_str2int(
         return 0 as *const libc::c_char;
     } else {
         loop {
-            let mut digit: libc::c_int = if 0 != *(*__ctype_b_loc())
-                .offset(*s as libc::c_uchar as libc::c_int as isize)
-                as libc::c_int
-                & _ISdigit as libc::c_int as libc::c_ushort as libc::c_int
+            let mut digit: libc::c_int = if 0
+                != *(*__ctype_b_loc()).offset(*s as libc::c_uchar as libc::c_int as isize)
+                    as libc::c_int
+                    & _ISdigit as libc::c_int as libc::c_ushort as libc::c_int
             {
                 *s as libc::c_int - '0' as i32
             } else {
@@ -937,9 +936,10 @@ unsafe extern "C" fn b_str2int(
                     .wrapping_mul(base as libc::c_ulonglong)
                     .wrapping_add(digit as libc::c_ulonglong);
                 s = s.offset(1isize);
-                if !(0 != *(*__ctype_b_loc()).offset(*s as libc::c_uchar as libc::c_int as isize)
-                    as libc::c_int
-                    & _ISalnum as libc::c_int as libc::c_ushort as libc::c_int)
+                if !(0
+                    != *(*__ctype_b_loc()).offset(*s as libc::c_uchar as libc::c_int as isize)
+                        as libc::c_int
+                        & _ISalnum as libc::c_int as libc::c_ushort as libc::c_int)
                 {
                     break;
                 }
@@ -961,12 +961,11 @@ unsafe extern "C" fn b_str2int(
 unsafe extern "C" fn luaB_setmetatable(mut L: *mut lua_State_0) -> libc::c_int {
     let mut t: libc::c_int = lua_type(L, 2i32);
     luaL_checktype(L, 1i32, 5i32);
-    (t == 0i32 || t == 5i32
-        || 0 != luaL_argerror(
-            L,
-            2i32,
-            b"nil or table expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (t == 0i32 || t == 5i32 || 0 != luaL_argerror(
+        L,
+        2i32,
+        b"nil or table expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     if luaL_getmetafield(
         L,
         1i32,
@@ -997,12 +996,11 @@ unsafe extern "C" fn luaB_select(mut L: *mut lua_State_0) -> libc::c_int {
         } else if i > n as libc::c_longlong {
             i = n as lua_Integer
         }
-        (1i32 as libc::c_longlong <= i
-            || 0 != luaL_argerror(
-                L,
-                1i32,
-                b"index out of range\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int;
+        (1i32 as libc::c_longlong <= i || 0 != luaL_argerror(
+            L,
+            1i32,
+            b"index out of range\x00" as *const u8 as *const libc::c_char,
+        )) as libc::c_int;
         return n - i as libc::c_int;
     };
 }
@@ -1023,12 +1021,11 @@ unsafe extern "C" fn luaB_rawget(mut L: *mut lua_State_0) -> libc::c_int {
 }
 unsafe extern "C" fn luaB_rawlen(mut L: *mut lua_State_0) -> libc::c_int {
     let mut t: libc::c_int = lua_type(L, 1i32);
-    (t == 5i32 || t == 4i32
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"table or string expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (t == 5i32 || t == 4i32 || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"table or string expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     lua_pushinteger(L, lua_rawlen(L, 1i32) as lua_Integer);
     return 1i32;
 }

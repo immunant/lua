@@ -1,14 +1,17 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject, TString};
-use lfunc::{UpVal};
+use lfunc::UpVal;
+use lobject::{
+    lua_TValue, CClosure, Closure, GCObject, LClosure, Node, Proto, TString, TValue, Table, Udata,
+    Value,
+};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -37,16 +40,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -100,7 +103,7 @@ pub type ptrdiff_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -362,32 +365,8 @@ pub union unnamed_4 {
     lnglen: size_t,
     hnext: *mut TString_0,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Table {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub flags: lu_byte,
-    pub lsizenode: lu_byte,
-    pub sizearray: libc::c_uint,
-    pub array: *mut TValue,
-    pub node: *mut Node,
-    pub lastfree: *mut Node,
-    pub metatable: *mut Table,
-    pub gclist: *mut GCObject,
-}
 /* copy a value into a key without messing up field 'next' */
-pub type Node = Node_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Node_0 {
-    pub i_val: TValue,
-    pub i_key: TKey,
-}
-/*
-** Tables
-*/
+pub type Node_0 = Node;
 pub type TKey = TKey_0;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -425,20 +404,6 @@ pub type lua_Alloc = Option<
     unsafe extern "C" fn(_: *mut libc::c_void, _: *mut libc::c_void, _: size_t, _: size_t)
         -> *mut libc::c_void,
 >;
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Memcontrol {
@@ -489,17 +454,6 @@ pub union UTString {
 ** Ensures that address after this type is always fully aligned.
 */
 pub type UTString_0 = UTString;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Udata {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub ttuv_: lu_byte,
-    pub metatable: *mut Table,
-    pub len: size_t,
-    pub user_: Value_0,
-}
 /*
 ** Get the actual string (array of bytes) from a 'TString'.
 ** (Access to 'extra' ensures that value is really a 'TString'.)
@@ -545,71 +499,9 @@ pub struct LocVar {
 ** (used for debug information)
 */
 pub type LocVar_0 = LocVar;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Proto {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub numparams: lu_byte,
-    pub is_vararg: lu_byte,
-    pub maxstacksize: lu_byte,
-    pub sizeupvalues: libc::c_int,
-    pub sizek: libc::c_int,
-    pub sizecode: libc::c_int,
-    pub sizelineinfo: libc::c_int,
-    pub sizep: libc::c_int,
-    pub sizelocvars: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
-    pub k: *mut TValue,
-    pub code: *mut Instruction,
-    pub p: *mut *mut Proto,
-    pub lineinfo: *mut libc::c_int,
-    pub locvars: *mut LocVar_0,
-    pub upvalues: *mut Upvaldesc_0,
-    pub cache: *mut LClosure,
-    pub source: *mut TString,
-    pub gclist: *mut GCObject,
-}
-/* last-created closure with this prototype */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub p: *mut Proto,
-    pub upvals: [*mut UpVal; 0],
-}
-/*
-** Function Prototypes
-*/
 pub type Proto_0 = Proto;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub f: lua_CFunction,
-    pub upvalue: [TValue; 0],
-}
-/*
-** Closures
-*/
 pub type CClosure_0 = CClosure;
 pub type LClosure_0 = LClosure;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Closure {
-    c: CClosure_0,
-    l: LClosure_0,
-}
 pub type Table_0 = Table;
 pub type TMS = libc::c_uint;
 /* number of elements in the enum */
@@ -1011,21 +903,22 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State_0, mut propagateerrors: libc::c_
                     )).as_ptr(),
                 );
             };
-            (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                } else {
-                    __assert_fail(
-                        b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                        b"lgc.c\x00" as *const u8 as *const libc::c_char,
-                        819i32 as libc::c_uint,
-                        (*::std::mem::transmute::<&[u8; 28], &[libc::c_char; 28]>(
-                            b"void GCTM(lua_State *, int)\x00",
-                        )).as_ptr(),
-                    );
-                };
-                0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-            })
+            (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                && (L.is_null() || {
+                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                    } else {
+                        __assert_fail(
+                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                            b"lgc.c\x00" as *const u8 as *const libc::c_char,
+                            819i32 as libc::c_uint,
+                            (*::std::mem::transmute::<&[u8; 28], &[libc::c_char; 28]>(
+                                b"void GCTM(lua_State *, int)\x00",
+                            )).as_ptr(),
+                        );
+                    };
+                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                })
         } {
         } else {
             if 0 != 0i32 {
@@ -1055,21 +948,23 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State_0, mut propagateerrors: libc::c_
                     )).as_ptr(),
                 );
             };
-            (*io1_0).tt_ & 0x3fi32 == (*(*io1_0).value_.gc).tt as libc::c_int && (L.is_null() || {
-                if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
-                } else {
-                    __assert_fail(
-                        b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                        b"lgc.c\x00" as *const u8 as *const libc::c_char,
-                        820i32 as libc::c_uint,
-                        (*::std::mem::transmute::<&[u8; 28], &[libc::c_char; 28]>(
-                            b"void GCTM(lua_State *, int)\x00",
-                        )).as_ptr(),
-                    );
-                };
-                0 != ((*(*io1_0).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-            })
+            (*io1_0).tt_ & 0x3fi32 == (*(*io1_0).value_.gc).tt as libc::c_int
+                && (L.is_null() || {
+                    if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
+                    } else {
+                        __assert_fail(
+                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                            b"lgc.c\x00" as *const u8 as *const libc::c_char,
+                            820i32 as libc::c_uint,
+                            (*::std::mem::transmute::<&[u8; 28], &[libc::c_char; 28]>(
+                                b"void GCTM(lua_State *, int)\x00",
+                            )).as_ptr(),
+                        );
+                    };
+                    0 != ((*(*io1_0).value_.gc).marked as libc::c_int
+                        ^ (1i32 << 0i32 | 1i32 << 1i32))
+                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                })
         } {
         } else {
             if 0 != 0i32 {
@@ -1259,7 +1154,8 @@ pub unsafe extern "C" fn luaC_step(mut L: *mut lua_State_0) -> () {
             g,
             (-((100i32 as libc::c_ulong)
                 .wrapping_mul(::std::mem::size_of::<TString>() as libc::c_ulong)
-                as libc::c_int) * 10i32) as l_mem,
+                as libc::c_int)
+                * 10i32) as l_mem,
         );
         return;
     } else {
@@ -1521,8 +1417,7 @@ unsafe extern "C" fn sweepstep(
                     (::std::mem::size_of::<TString>() as libc::c_ulong)
                         .wrapping_add(4i32 as libc::c_ulong)
                         .wrapping_div(4i32 as libc::c_ulong),
-                )
-                .wrapping_div(4i32 as libc::c_ulong) as libc::c_int as lu_mem,
+                ).wrapping_div(4i32 as libc::c_ulong) as libc::c_int as lu_mem,
         );
         /* update estimate */
         (*g).GCestimate = ((*g).GCestimate as libc::c_ulong)
@@ -1537,8 +1432,7 @@ unsafe extern "C" fn sweepstep(
                     (::std::mem::size_of::<TString>() as libc::c_ulong)
                         .wrapping_add(4i32 as libc::c_ulong)
                         .wrapping_div(4i32 as libc::c_ulong),
-                )
-                .wrapping_div(4i32 as libc::c_ulong) as libc::c_int
+                ).wrapping_div(4i32 as libc::c_ulong) as libc::c_int
                 as libc::c_ulong)
                 .wrapping_mul(
                     (::std::mem::size_of::<TString>() as libc::c_ulong)
@@ -1841,7 +1735,8 @@ unsafe extern "C" fn removeentry(mut n: *mut Node) -> () {
         0 != (*(*(&mut (*n).i_key.tvk as *mut TValue as *const TValue))
             .value_
             .gc)
-            .marked as libc::c_int & (1i32 << 0i32 | 1i32 << 1i32)
+            .marked as libc::c_int
+            & (1i32 << 0i32 | 1i32 << 1i32)
     } {
         (*n).i_key.nk.tt_ = 9i32 + 1i32
     };
@@ -1881,7 +1776,8 @@ unsafe extern "C" fn iscleared(mut g: *mut global_State, mut o: *const TValue) -
             );
         };
         if 0 != (*(&mut (*((*o).value_.gc as *mut GCUnion)).ts as *mut TString_0)).marked
-            as libc::c_int & (1i32 << 0i32 | 1i32 << 1i32)
+            as libc::c_int
+            & (1i32 << 0i32 | 1i32 << 1i32)
         {
             if (*o).tt_ & 0xfi32 == 4i32 {
             } else {
@@ -1907,7 +1803,8 @@ unsafe extern "C" fn iscleared(mut g: *mut global_State, mut o: *const TValue) -
                 );
             };
             if (*(&mut (*((*o).value_.gc as *mut GCUnion)).ts as *mut TString_0)).tt as libc::c_int
-                & 0xfi32 < 9i32 + 1i32
+                & 0xfi32
+                < 9i32 + 1i32
             {
             } else {
                 __assert_fail(b"(((((((((((((o))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((o))->tt_)) & 0x0F)) == (4))\", \"lgc.c\", 143, __extension__ __PRETTY_FUNCTION__)), (((((((((o)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((o)->value_).gc)->tt) & 0x0F) == 4\", \"lgc.c\", 143, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((o)->value_).gc))))->ts))))))->tt) & 0x0F) < (9+1)\x00"
@@ -2081,7 +1978,8 @@ unsafe extern "C" fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCOb
                         );
                     };
                     if 0 != (*(*(&mut (*(o as *mut GCUnion)).u as *mut Udata)).metatable).marked
-                        as libc::c_int & (1i32 << 0i32 | 1i32 << 1i32)
+                        as libc::c_int
+                        & (1i32 << 0i32 | 1i32 << 1i32)
                     {
                         if (*o).tt as libc::c_int == 7i32 {
                         } else {
@@ -2095,7 +1993,9 @@ unsafe extern "C" fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCOb
                             );
                         };
                         if (*(*(&mut (*(o as *mut GCUnion)).u as *mut Udata)).metatable).tt
-                            as libc::c_int & 0xfi32 < 9i32 + 1i32
+                            as libc::c_int
+                            & 0xfi32
+                            < 9i32 + 1i32
                         {
                         } else {
                             __assert_fail(b"(((((((o)->tt == 7) ? (void) (0) : __assert_fail (\"(o)->tt == 7\", \"lgc.c\", 252, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((o))))->u)))->metatable)->tt) & 0x0F) < (9+1)\x00"
@@ -2260,7 +2160,8 @@ unsafe extern "C" fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCOb
                     );
                 };
                 if (*(&mut (*(o as *mut GCUnion)).cl.l as *mut LClosure_0)).tt as libc::c_int
-                    & 0xfi32 < 9i32 + 1i32
+                    & 0xfi32
+                    < 9i32 + 1i32
                 {
                 } else {
                     __assert_fail(b"(((((((o)->tt == (6 | (0 << 4))) ? (void) (0) : __assert_fail (\"(o)->tt == (6 | (0 << 4))\", \"lgc.c\", 263, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((o))))->cl.l))))->tt) & 0x0F) < (9+1)\x00"
@@ -2313,7 +2214,8 @@ unsafe extern "C" fn reallymarkobject(mut g: *mut global_State, mut o: *mut GCOb
                     );
                 };
                 if (*(&mut (*(o as *mut GCUnion)).cl.c as *mut CClosure_0)).tt as libc::c_int
-                    & 0xfi32 < 9i32 + 1i32
+                    & 0xfi32
+                    < 9i32 + 1i32
                 {
                 } else {
                     __assert_fail(b"(((((((o)->tt == (6 | (2 << 4))) ? (void) (0) : __assert_fail (\"(o)->tt == (6 | (2 << 4))\", \"lgc.c\", 267, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((o))))->cl.c))))->tt) & 0x0F) < (9+1)\x00"
@@ -2942,24 +2844,19 @@ unsafe extern "C" fn traverseproto(mut g: *mut global_State, mut f: *mut Proto_0
         .wrapping_add(
             (::std::mem::size_of::<Instruction>() as libc::c_ulong)
                 .wrapping_mul((*f).sizecode as libc::c_ulong),
-        )
-        .wrapping_add(
+        ).wrapping_add(
             (::std::mem::size_of::<*mut Proto_0>() as libc::c_ulong)
                 .wrapping_mul((*f).sizep as libc::c_ulong),
-        )
-        .wrapping_add(
+        ).wrapping_add(
             (::std::mem::size_of::<TValue>() as libc::c_ulong)
                 .wrapping_mul((*f).sizek as libc::c_ulong),
-        )
-        .wrapping_add(
+        ).wrapping_add(
             (::std::mem::size_of::<libc::c_int>() as libc::c_ulong)
                 .wrapping_mul((*f).sizelineinfo as libc::c_ulong),
-        )
-        .wrapping_add(
+        ).wrapping_add(
             (::std::mem::size_of::<LocVar_0>() as libc::c_ulong)
                 .wrapping_mul((*f).sizelocvars as libc::c_ulong),
-        )
-        .wrapping_add(
+        ).wrapping_add(
             (::std::mem::size_of::<Upvaldesc_0>() as libc::c_ulong)
                 .wrapping_mul((*f).sizeupvalues as libc::c_ulong),
         ) as libc::c_int;
@@ -3066,8 +2963,7 @@ unsafe extern "C" fn traversethread(mut g: *mut global_State, mut th: *mut lua_S
             .wrapping_add(
                 (::std::mem::size_of::<TValue>() as libc::c_ulong)
                     .wrapping_mul((*th).stacksize as libc::c_ulong),
-            )
-            .wrapping_add(
+            ).wrapping_add(
                 (::std::mem::size_of::<CallInfo_0>() as libc::c_ulong)
                     .wrapping_mul((*th).nci as libc::c_ulong),
             );
@@ -3277,85 +3173,91 @@ unsafe extern "C" fn traversetable(mut g: *mut global_State, mut h: *mut Table_0
         }
     }
     /* is there a weak mode? */
-    if !mode.is_null() && (*mode).tt_ & 0xfi32 == 4i32 && {
-        if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
-        } else {
-            __assert_fail(b"sizeof((((((((((((mode))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((mode))->tt_)) & 0x0F)) == (4))\", \"lgc.c\", 457, __extension__ __PRETTY_FUNCTION__)), (((((((((mode)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((mode)->value_).gc)->tt) & 0x0F) == 4\", \"lgc.c\", 457, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((mode)->value_).gc))))->ts))))))->extra)\x00"
+    if !mode.is_null()
+        && (*mode).tt_ & 0xfi32 == 4i32
+        && {
+            if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
+            } else {
+                __assert_fail(b"sizeof((((((((((((mode))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((mode))->tt_)) & 0x0F)) == (4))\", \"lgc.c\", 457, __extension__ __PRETTY_FUNCTION__)), (((((((((mode)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((mode)->value_).gc)->tt) & 0x0F) == 4\", \"lgc.c\", 457, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((mode)->value_).gc))))->ts))))))->extra)\x00"
                                      as *const u8 as *const libc::c_char,
                                  b"lgc.c\x00" as *const u8 as
                                      *const libc::c_char,
                                  457i32 as libc::c_uint,
                                  (*::std::mem::transmute::<&[u8; 46],
                                                            &[libc::c_char; 46]>(b"lu_mem traversetable(global_State *, Table *)\x00")).as_ptr());
-        };
-        if (*mode).tt_ & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((((mode))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
-                b"lgc.c\x00" as *const u8 as *const libc::c_char,
-                457i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
-                    b"lu_mem traversetable(global_State *, Table *)\x00",
-                )).as_ptr(),
+            };
+            if (*mode).tt_ & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((((mode))->tt_)) & 0x0F)) == (4))\x00" as *const u8
+                        as *const libc::c_char,
+                    b"lgc.c\x00" as *const u8 as *const libc::c_char,
+                    457i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
+                        b"lu_mem traversetable(global_State *, Table *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            if (*(*mode).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((mode)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
+                        as *const libc::c_char,
+                    b"lgc.c\x00" as *const u8 as *const libc::c_char,
+                    457i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
+                        b"lu_mem traversetable(global_State *, Table *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            weakkey = strchr(
+                (&mut (*((*mode).value_.gc as *mut GCUnion)).ts as *mut TString_0
+                    as *mut libc::c_char)
+                    .offset(::std::mem::size_of::<UTString_0>() as libc::c_ulong as isize),
+                'k' as i32,
             );
-        };
-        if (*(*mode).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((mode)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
-                    as *const libc::c_char,
-                b"lgc.c\x00" as *const u8 as *const libc::c_char,
-                457i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
-                    b"lu_mem traversetable(global_State *, Table *)\x00",
-                )).as_ptr(),
-            );
-        };
-        weakkey = strchr(
-            (&mut (*((*mode).value_.gc as *mut GCUnion)).ts as *mut TString_0 as *mut libc::c_char)
-                .offset(::std::mem::size_of::<UTString_0>() as libc::c_ulong as isize),
-            'k' as i32,
-        );
-        if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
-        } else {
-            __assert_fail(b"sizeof((((((((((((mode))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((mode))->tt_)) & 0x0F)) == (4))\", \"lgc.c\", 458, __extension__ __PRETTY_FUNCTION__)), (((((((((mode)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((mode)->value_).gc)->tt) & 0x0F) == 4\", \"lgc.c\", 458, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((mode)->value_).gc))))->ts))))))->extra)\x00"
+            if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
+            } else {
+                __assert_fail(b"sizeof((((((((((((mode))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((mode))->tt_)) & 0x0F)) == (4))\", \"lgc.c\", 458, __extension__ __PRETTY_FUNCTION__)), (((((((((mode)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((mode)->value_).gc)->tt) & 0x0F) == 4\", \"lgc.c\", 458, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((mode)->value_).gc))))->ts))))))->extra)\x00"
                                      as *const u8 as *const libc::c_char,
                                  b"lgc.c\x00" as *const u8 as
                                      *const libc::c_char,
                                  458i32 as libc::c_uint,
                                  (*::std::mem::transmute::<&[u8; 46],
                                                            &[libc::c_char; 46]>(b"lu_mem traversetable(global_State *, Table *)\x00")).as_ptr());
-        };
-        if (*mode).tt_ & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((((mode))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
-                b"lgc.c\x00" as *const u8 as *const libc::c_char,
-                458i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
-                    b"lu_mem traversetable(global_State *, Table *)\x00",
-                )).as_ptr(),
+            };
+            if (*mode).tt_ & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((((mode))->tt_)) & 0x0F)) == (4))\x00" as *const u8
+                        as *const libc::c_char,
+                    b"lgc.c\x00" as *const u8 as *const libc::c_char,
+                    458i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
+                        b"lu_mem traversetable(global_State *, Table *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            if (*(*mode).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((mode)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
+                        as *const libc::c_char,
+                    b"lgc.c\x00" as *const u8 as *const libc::c_char,
+                    458i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
+                        b"lu_mem traversetable(global_State *, Table *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            weakvalue = strchr(
+                (&mut (*((*mode).value_.gc as *mut GCUnion)).ts as *mut TString_0
+                    as *mut libc::c_char)
+                    .offset(::std::mem::size_of::<UTString_0>() as libc::c_ulong as isize),
+                'v' as i32,
             );
-        };
-        if (*(*mode).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((mode)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
-                    as *const libc::c_char,
-                b"lgc.c\x00" as *const u8 as *const libc::c_char,
-                458i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 46], &[libc::c_char; 46]>(
-                    b"lu_mem traversetable(global_State *, Table *)\x00",
-                )).as_ptr(),
-            );
-        };
-        weakvalue = strchr(
-            (&mut (*((*mode).value_.gc as *mut GCUnion)).ts as *mut TString_0 as *mut libc::c_char)
-                .offset(::std::mem::size_of::<UTString_0>() as libc::c_ulong as isize),
-            'v' as i32,
-        );
-        !weakkey.is_null() || !weakvalue.is_null()
-    } {
+            !weakkey.is_null() || !weakvalue.is_null()
+        } {
         /* is really weak? */
         (*h).marked =
             ((*h).marked as libc::c_int & !(1i32 << 2i32) as lu_byte as libc::c_int) as lu_byte;
@@ -3390,8 +3292,7 @@ unsafe extern "C" fn traversetable(mut g: *mut global_State, mut h: *mut Table_0
         .wrapping_add(
             (::std::mem::size_of::<TValue>() as libc::c_ulong)
                 .wrapping_mul((*h).sizearray as libc::c_ulong),
-        )
-        .wrapping_add(
+        ).wrapping_add(
             (::std::mem::size_of::<Node>() as libc::c_ulong).wrapping_mul(
                 (if (*h).lastfree.is_null() {
                     0i32
@@ -3550,7 +3451,8 @@ unsafe extern "C" fn traversestrongtable(mut g: *mut global_State, mut h: *mut T
                 0 != (*(*(&mut (*n).i_key.tvk as *mut TValue as *const TValue))
                     .value_
                     .gc)
-                    .marked as libc::c_int & (1i32 << 0i32 | 1i32 << 1i32)
+                    .marked as libc::c_int
+                    & (1i32 << 0i32 | 1i32 << 1i32)
             } {
                 if 0 != (*(&mut (*n).i_key.tvk as *mut TValue as *const TValue)).tt_ & 1i32 << 6i32
                 {
@@ -3918,7 +3820,8 @@ unsafe extern "C" fn traverseweakvalue(mut g: *mut global_State, mut h: *mut Tab
                 0 != (*(*(&mut (*n).i_key.tvk as *mut TValue as *const TValue))
                     .value_
                     .gc)
-                    .marked as libc::c_int & (1i32 << 0i32 | 1i32 << 1i32)
+                    .marked as libc::c_int
+                    & (1i32 << 0i32 | 1i32 << 1i32)
             } {
                 if 0 != (*(&mut (*n).i_key.tvk as *mut TValue as *const TValue)).tt_ & 1i32 << 6i32
                 {

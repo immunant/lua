@@ -1,13 +1,13 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, Node, TKey, TString, TValue, Table, Value};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -38,16 +38,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -105,20 +105,6 @@ pub type size_t = libc::c_ulong;
 pub struct Vardesc {
     pub idx: libc::c_short,
 }
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
 pub const TK_NOT: RESERVED = 271;
 pub const TK_WHILE: RESERVED = 278;
 pub const TK_NIL: RESERVED = 270;
@@ -127,7 +113,7 @@ pub type ptrdiff_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -355,57 +341,16 @@ pub type global_State_0 = global_State;
 ** Header for string value; string bytes follow the end of this structure
 ** (aligned according to 'UTString'; see next).
 */
-pub type TString = TString_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TString_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub extra: lu_byte,
-    pub shrlen: lu_byte,
-    pub hash: libc::c_uint,
-    pub u: unnamed_2,
-}
+pub type TString_0 = TString;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_2 {
     lnglen: size_t,
     hnext: *mut TString_0,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Table {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub flags: lu_byte,
-    pub lsizenode: lu_byte,
-    pub sizearray: libc::c_uint,
-    pub array: *mut TValue,
-    pub node: *mut Node,
-    pub lastfree: *mut Node,
-    pub metatable: *mut Table,
-    pub gclist: *mut GCObject,
-}
 /* copy a value into a key without messing up field 'next' */
-pub type Node = Node_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Node_0 {
-    pub i_val: TValue,
-    pub i_key: TKey,
-}
-/*
-** Tables
-*/
-pub type TKey = TKey_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union TKey_0 {
-    nk: unnamed_3,
-    tvk: TValue,
-}
+pub type Node_0 = Node;
+pub type TKey_0 = TKey;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct unnamed_3 {
@@ -903,21 +848,22 @@ pub unsafe extern "C" fn luaX_newstring(
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"llex.c\x00" as *const u8 as *const libc::c_char,
-                    132i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 58], &[libc::c_char; 58]>(
-                        b"TString *luaX_newstring(LexState *, const char *, size_t)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"llex.c\x00" as *const u8 as *const libc::c_char,
+                        132i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 58], &[libc::c_char; 58]>(
+                            b"TString *luaX_newstring(LexState *, const char *, size_t)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -951,7 +897,9 @@ pub unsafe extern "C" fn luaX_newstring(
         if (*(&mut (*((o as *mut libc::c_char).offset(-0isize) as *mut Node))
             .i_key
             .tvk as *mut TValue as *const TValue))
-            .tt_ & 0xfi32 == 4i32
+            .tt_
+            & 0xfi32
+            == 4i32
         {
         } else {
             __assert_fail(b"((((((((((const TValue*)((&(((Node *)(((char *)((o))) - __builtin_offsetof(Node, i_val))))->i_key.tvk))))))->tt_)) & 0x0F)) == (4))\x00"
@@ -966,7 +914,9 @@ pub unsafe extern "C" fn luaX_newstring(
             .tvk as *mut TValue as *const TValue))
             .value_
             .gc)
-            .tt as libc::c_int & 0xfi32 == 4i32
+            .tt as libc::c_int
+            & 0xfi32
+            == 4i32
         {
         } else {
             __assert_fail(b"((((((((const TValue*)((&(((Node *)(((char *)((o))) - __builtin_offsetof(Node, i_val))))->i_key.tvk)))))->value_).gc)->tt) & 0x0F) == 4\x00"
@@ -1239,8 +1189,9 @@ unsafe extern "C" fn llex(mut ls: *mut LexState_0, mut seminfo: *mut SemInfo) ->
                         } else {
                             luaZ_fill((*ls).z)
                         };
-                        if !(0 != luai_ctype_[((*ls).current + 1i32) as usize] as libc::c_int
-                            & (1i32 << 0i32 | 1i32 << 1i32))
+                        if !(0
+                            != luai_ctype_[((*ls).current + 1i32) as usize] as libc::c_int
+                                & (1i32 << 0i32 | 1i32 << 1i32))
                         {
                             break;
                         }
@@ -1277,14 +1228,13 @@ unsafe extern "C" fn save(mut ls: *mut LexState_0, mut c: libc::c_int) -> () {
     let mut b: *mut Mbuffer_0 = (*ls).buff;
     if (*b).n.wrapping_add(1i32 as libc::c_ulong) > (*b).buffsize {
         let mut newsize: size_t = 0;
-        if (*b).buffsize
-            >= if (::std::mem::size_of::<size_t>() as libc::c_ulong)
-                < ::std::mem::size_of::<lua_Integer>() as libc::c_ulong
-            {
-                !(0i32 as size_t)
-            } else {
-                9223372036854775807i64 as size_t
-            }.wrapping_div(2i32 as libc::c_ulong)
+        if (*b).buffsize >= if (::std::mem::size_of::<size_t>() as libc::c_ulong)
+            < ::std::mem::size_of::<lua_Integer>() as libc::c_ulong
+        {
+            !(0i32 as size_t)
+        } else {
+            9223372036854775807i64 as size_t
+        }.wrapping_div(2i32 as libc::c_ulong)
         {
             lexerror(
                 ls,
@@ -1675,8 +1625,9 @@ unsafe extern "C" fn read_string(
                         /* remove '\\' */
                         /* skip the 'z' */
                         loop {
-                            if !(0 != luai_ctype_[((*ls).current + 1i32) as usize] as libc::c_int
-                                & 1i32 << 3i32)
+                            if !(0
+                                != luai_ctype_[((*ls).current + 1i32) as usize] as libc::c_int
+                                    & 1i32 << 3i32)
                             {
                                 continue 's_4;
                             }

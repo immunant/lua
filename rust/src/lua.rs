@@ -1,6 +1,6 @@
-use lstate::{lua_State, global_State, CallInfo, stringtable};
-use lobject::{GCObject, Value, TValue, lua_TValue, Table, TString};
-use lfunc::{UpVal};
+use lfunc::UpVal;
+use lobject::{lua_TValue, GCObject, TString, TValue, Table, Value};
+use lstate::{global_State, lua_State, stringtable, CallInfo};
 
 extern crate libc;
 extern "C" {

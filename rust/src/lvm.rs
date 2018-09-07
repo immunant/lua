@@ -1,14 +1,18 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject, TString};
+use lfunc::UpVal;
+use lobject::{
+    lua_TValue, CClosure, Closure, GCObject, LClosure, Proto, TString, TValue, Table, Udata,
+    Upvaldesc, Value,
+};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     pub type _IO_FILE_plus;
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -61,16 +65,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -196,7 +200,7 @@ pub const TM_IDIV: TMS = 12;
 pub const TM_SHR: TMS = 17;
 /*	A B C	R(A) := RK(B) - RK(C)				*/
 pub const OP_SUB: OpCode = 14;
-pub type Table = Table_0;
+pub type Table_0 = Table;
 /*	A B	R(A) := ~R(B)					*/
 pub const OP_BNOT: OpCode = 26;
 /*	A C	if not (R(A) <=> C) then pc++			*/
@@ -213,64 +217,10 @@ pub union L_Umaxalign {
     b: [libc::c_char; 64],
 }
 pub const TM_ADD: TMS = 6;
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table_0,
-    p: Proto,
-    th: lua_State,
-}
 /*	A B C	if ((RK(B) <  RK(C)) ~= A) then pc++		*/
 pub const OP_LT: OpCode = 32;
 /*	A B C	R(A) := RK(B) / RK(C)				*/
 pub const OP_DIV: OpCode = 18;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Closure {
-    c: CClosure_0,
-    l: LClosure_0,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Proto {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub numparams: lu_byte,
-    pub is_vararg: lu_byte,
-    pub maxstacksize: lu_byte,
-    pub sizeupvalues: libc::c_int,
-    pub sizek: libc::c_int,
-    pub sizecode: libc::c_int,
-    pub sizelineinfo: libc::c_int,
-    pub sizep: libc::c_int,
-    pub sizelocvars: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
-    pub k: *mut TValue,
-    pub code: *mut Instruction,
-    pub p: *mut *mut Proto,
-    pub lineinfo: *mut libc::c_int,
-    pub locvars: *mut LocVar_0,
-    pub upvalues: *mut Upvaldesc_0,
-    pub cache: *mut LClosure,
-    pub source: *mut TString,
-    pub gclist: *mut GCObject,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Upvaldesc {
-    pub name: *mut TString,
-    pub instack: lu_byte,
-    pub idx: lu_byte,
-}
 /*	A B C	UpValue[A][RK(B)] := RK(C)			*/
 pub const OP_SETTABUP: OpCode = 8;
 /*	Ax	extra (larger) argument for previous opcode	*/
@@ -289,18 +239,6 @@ pub const OP_TAILCALL: OpCode = 37;
 */
 pub type Upvaldesc_0 = Upvaldesc;
 pub const TM_NEWINDEX: TMS = 1;
-/* last-created closure with this prototype */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub p: *mut Proto,
-    pub upvals: [*mut UpVal; 0],
-}
 /*	A B	R(A), R(A+1), ..., R(A+B) := nil		*/
 pub const OP_LOADNIL: OpCode = 4;
 /*	A B	UpValue[B] := R(A)				*/
@@ -420,17 +358,6 @@ pub struct LocVar {
     pub startpc: libc::c_int,
     pub endpc: libc::c_int,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub f: lua_CFunction,
-    pub upvalue: [TValue; 0],
-}
 /*
 ** Ensures that address after this type is always fully aligned.
 */
@@ -498,17 +425,6 @@ pub const TM_BOR: TMS = 14;
 pub const OP_CONCAT: OpCode = 29;
 /* argument is not used */
 pub const OpArgN: OpArgMask = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Udata {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub ttuv_: lu_byte,
-    pub metatable: *mut Table_0,
-    pub len: size_t,
-    pub user_: Value_0,
-}
 /*	A B C	R(A) := RK(B) | RK(C)				*/
 pub const OP_BOR: OpCode = 21;
 /*	A B C	R(A) := RK(B) * RK(C)				*/
@@ -516,7 +432,7 @@ pub const OP_MUL: OpCode = 15;
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -723,14 +639,7 @@ pub type CallInfo_0 = CallInfo;
 /*
 ** Lua Upvalues
 */
-pub type UpVal = UpVal_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct UpVal_0 {
-    pub v: *mut TValue,
-    pub refcount: lu_mem,
-    pub u: unnamed_2,
-}
+pub type UpVal_0 = UpVal;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_2 {
@@ -785,21 +694,6 @@ pub type TString_0 = TString;
 pub union unnamed_4 {
     lnglen: size_t,
     hnext: *mut TString_0,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Table_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub flags: lu_byte,
-    pub lsizenode: lu_byte,
-    pub sizearray: libc::c_uint,
-    pub array: *mut TValue,
-    pub node: *mut Node,
-    pub lastfree: *mut Node,
-    pub metatable: *mut Table_0,
-    pub gclist: *mut GCObject,
 }
 /* copy a value into a key without messing up field 'next' */
 pub type Node = Node_0;
@@ -1100,7 +994,8 @@ pub unsafe extern "C" fn luaV_equalobj(
                     );
                 };
                 if (*(&mut (*((*t1).value_.gc as *mut GCUnion)).ts as *mut TString_0)).tt
-                    as libc::c_int == 4i32 | 0i32 << 4i32
+                    as libc::c_int
+                    == 4i32 | 0i32 << 4i32
                 {
                 } else {
                     __assert_fail(b"(((((((((((t1))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((t1))->tt_)) & 0x0F)) == (4))\", \"lvm.c\", 426, __extension__ __PRETTY_FUNCTION__)), (((((((((t1)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((t1)->value_).gc)->tt) & 0x0F) == 4\", \"lvm.c\", 426, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((t1)->value_).gc))))->ts))))))->tt == (4 | (0 << 4))\x00"
@@ -1782,10 +1677,11 @@ pub unsafe extern "C" fn luaV_tointeger(
             };
             *p = (*obj).value_.i;
             return 1i32;
-        } else if (*obj).tt_ & 0xfi32 == 4i32 && {
-            if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
-            } else {
-                __assert_fail(b"sizeof((((((((((((obj))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((obj))->tt_)) & 0x0F)) == (4))\", \"lvm.c\", 113, __extension__ __PRETTY_FUNCTION__)), (((((((((obj)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((obj)->value_).gc)->tt) & 0x0F) == 4\", \"lvm.c\", 113, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((obj)->value_).gc))))->ts))))))->extra)\x00"
+        } else if (*obj).tt_ & 0xfi32 == 4i32
+            && {
+                if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
+                } else {
+                    __assert_fail(b"sizeof((((((((((((obj))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((obj))->tt_)) & 0x0F)) == (4))\", \"lvm.c\", 113, __extension__ __PRETTY_FUNCTION__)), (((((((((obj)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((obj)->value_).gc)->tt) & 0x0F) == 4\", \"lvm.c\", 113, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((obj)->value_).gc))))->ts))))))->extra)\x00"
                                                 as *const u8 as
                                                 *const libc::c_char,
                                             b"lvm.c\x00" as *const u8 as
@@ -1793,61 +1689,63 @@ pub unsafe extern "C" fn luaV_tointeger(
                                             113i32 as libc::c_uint,
                                             (*::std::mem::transmute::<&[u8; 55],
                                                                       &[libc::c_char; 55]>(b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00")).as_ptr());
-            };
-            if (*obj).tt_ & 0xfi32 == 4i32 {
-            } else {
-                __assert_fail(
-                    b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
-                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                    113i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
-                        b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
-                    )).as_ptr(),
-                );
-            };
-            if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
-            } else {
-                __assert_fail(
-                    b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
-                        as *const libc::c_char,
-                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                    113i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
-                        b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
-                    )).as_ptr(),
-                );
-            };
-            if (*obj).tt_ & 0xfi32 == 4i32 {
-            } else {
-                __assert_fail(
-                    b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
-                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                    113i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
-                        b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
-                    )).as_ptr(),
-                );
-            };
-            if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
-            } else {
-                __assert_fail(
-                    b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
-                        as *const libc::c_char,
-                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                    113i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
-                        b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
-                    )).as_ptr(),
-                );
-            };
-            luaO_str2num(
-                (&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0
-                    as *mut libc::c_char)
-                    .offset(::std::mem::size_of::<UTString>() as libc::c_ulong as isize),
-                &mut v,
-            )
-                == if (*(&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0)).tt
-                    as libc::c_int == 4i32 | 0i32 << 4i32
+                };
+                if (*obj).tt_ & 0xfi32 == 4i32 {
+                } else {
+                    __assert_fail(
+                        b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8
+                            as *const libc::c_char,
+                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                        113i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
+                            b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
+                } else {
+                    __assert_fail(
+                        b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
+                            as *const libc::c_char,
+                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                        113i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
+                            b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                if (*obj).tt_ & 0xfi32 == 4i32 {
+                } else {
+                    __assert_fail(
+                        b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8
+                            as *const libc::c_char,
+                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                        113i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
+                            b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
+                } else {
+                    __assert_fail(
+                        b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
+                            as *const libc::c_char,
+                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                        113i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 55], &[libc::c_char; 55]>(
+                            b"int luaV_tointeger(const TValue *, lua_Integer *, int)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                luaO_str2num(
+                    (&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0
+                        as *mut libc::c_char)
+                        .offset(::std::mem::size_of::<UTString>() as libc::c_ulong as isize),
+                    &mut v,
+                ) == if (*(&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0)).tt
+                    as libc::c_int
+                    == 4i32 | 0i32 << 4i32
                 {
                     if (*obj).tt_ & 0xfi32 == 4i32 {
                     } else {
@@ -1904,7 +1802,7 @@ pub unsafe extern "C" fn luaV_tointeger(
                         .u
                         .lnglen
                 }.wrapping_add(1i32 as libc::c_ulong)
-        } {
+            } {
             obj = &mut v
         } else {
             return 0i32;
@@ -1924,10 +1822,11 @@ pub unsafe extern "C" fn luaV_tointeger(
         _ => {}
     }
     return (f >= (-9223372036854775807i64 - 1i64) as libc::c_double
-        && f < -((-9223372036854775807i64 - 1i64) as libc::c_double) && {
-        *p = f as libc::c_longlong;
-        0 != 1i32
-    }) as libc::c_int;
+        && f < -((-9223372036854775807i64 - 1i64) as libc::c_double)
+        && {
+            *p = f as libc::c_longlong;
+            0 != 1i32
+        }) as libc::c_int;
 }
 #[no_mangle]
 pub unsafe extern "C" fn luaV_lessthan(
@@ -2416,10 +2315,11 @@ pub unsafe extern "C" fn luaV_tonumber_(
         };
         *n = (*obj).value_.i as lua_Number;
         return 1i32;
-    } else if (*obj).tt_ & 0xfi32 == 4i32 && {
-        if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
-        } else {
-            __assert_fail(b"sizeof((((((((((((obj))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((obj))->tt_)) & 0x0F)) == (4))\", \"lvm.c\", 80, __extension__ __PRETTY_FUNCTION__)), (((((((((obj)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((obj)->value_).gc)->tt) & 0x0F) == 4\", \"lvm.c\", 80, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((obj)->value_).gc))))->ts))))))->extra)\x00"
+    } else if (*obj).tt_ & 0xfi32 == 4i32
+        && {
+            if 0 != ::std::mem::size_of::<lu_byte>() as libc::c_ulong {
+            } else {
+                __assert_fail(b"sizeof((((((((((((obj))->tt_)) & 0x0F)) == (4))) ? (void) (0) : __assert_fail (\"(((((((obj))->tt_)) & 0x0F)) == (4))\", \"lvm.c\", 80, __extension__ __PRETTY_FUNCTION__)), (((((((((obj)->value_).gc)->tt) & 0x0F) == 4) ? (void) (0) : __assert_fail (\"(((((obj)->value_).gc)->tt) & 0x0F) == 4\", \"lvm.c\", 80, __extension__ __PRETTY_FUNCTION__)), (&((((union GCUnion *)((((obj)->value_).gc))))->ts))))))->extra)\x00"
                                             as *const u8 as
                                             *const libc::c_char,
                                         b"lvm.c\x00" as *const u8 as
@@ -2427,58 +2327,61 @@ pub unsafe extern "C" fn luaV_tonumber_(
                                         80i32 as libc::c_uint,
                                         (*::std::mem::transmute::<&[u8; 49],
                                                                   &[libc::c_char; 49]>(b"int luaV_tonumber_(const TValue *, lua_Number *)\x00")).as_ptr());
-        };
-        if (*obj).tt_ & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
-                b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                80i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
-                    b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
-                )).as_ptr(),
-            );
-        };
-        if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8 as *const libc::c_char,
-                b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                80i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
-                    b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
-                )).as_ptr(),
-            );
-        };
-        if (*obj).tt_ & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
-                b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                80i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
-                    b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
-                )).as_ptr(),
-            );
-        };
-        if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
-        } else {
-            __assert_fail(
-                b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8 as *const libc::c_char,
-                b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                80i32 as libc::c_uint,
-                (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
-                    b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
-                )).as_ptr(),
-            );
-        };
-        luaO_str2num(
-            (&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0 as *mut libc::c_char)
-                .offset(::std::mem::size_of::<UTString>() as libc::c_ulong as isize),
-            &mut v,
-        )
-            == if (*(&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0)).tt
-                as libc::c_int == 4i32 | 0i32 << 4i32
+            };
+            if (*obj).tt_ & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
+                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                    80i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
+                        b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
+                        as *const libc::c_char,
+                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                    80i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
+                        b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            if (*obj).tt_ & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((((obj))->tt_)) & 0x0F)) == (4))\x00" as *const u8 as *const libc::c_char,
+                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                    80i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
+                        b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            if (*(*obj).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
+            } else {
+                __assert_fail(
+                    b"(((((obj)->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
+                        as *const libc::c_char,
+                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                    80i32 as libc::c_uint,
+                    (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
+                        b"int luaV_tonumber_(const TValue *, lua_Number *)\x00",
+                    )).as_ptr(),
+                );
+            };
+            luaO_str2num(
+                (&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0
+                    as *mut libc::c_char)
+                    .offset(::std::mem::size_of::<UTString>() as libc::c_ulong as isize),
+                &mut v,
+            ) == if (*(&mut (*((*obj).value_.gc as *mut GCUnion)).ts as *mut TString_0)).tt
+                as libc::c_int
+                == 4i32 | 0i32 << 4i32
             {
                 if (*obj).tt_ & 0xfi32 == 4i32 {
                 } else {
@@ -2535,7 +2438,7 @@ pub unsafe extern "C" fn luaV_tonumber_(
                     .u
                     .lnglen
             }.wrapping_add(1i32 as libc::c_ulong)
-    } {
+        } {
         /* convert result of 'luaO_str2num' to a float */
         if v.tt_ & 0xfi32 == 3i32 {
         } else {
@@ -2668,7 +2571,8 @@ pub unsafe extern "C" fn luaV_finishget(
                                                                 &[libc::c_char; 82]>(b"void luaV_finishget(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
                 };
                 if 0 != (*(*(&mut (*((*t).value_.gc as *mut GCUnion)).h as *mut Table_0)).metatable)
-                    .flags as libc::c_uint & 1u32 << TM_INDEX as libc::c_int
+                    .flags as libc::c_uint
+                    & 1u32 << TM_INDEX as libc::c_int
                 {
                     0 as *const TValue
                 } else {
@@ -2748,10 +2652,11 @@ pub unsafe extern "C" fn luaV_finishget(
                 /* fast track? */
                 let mut io1: *mut TValue = val;
                 *io1 = *slot;
-                if 0 == (*io1).tt_ & 1i32 << 6i32 || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                if 0 == (*io1).tt_ & 1i32 << 6i32
+                    || {
+                        if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                  as *const u8 as
                                                  *const libc::c_char,
                                              b"lvm.c\x00" as *const u8 as
@@ -2759,12 +2664,13 @@ pub unsafe extern "C" fn luaV_finishget(
                                              188i32 as libc::c_uint,
                                              (*::std::mem::transmute::<&[u8; 82],
                                                                        &[libc::c_char; 82]>(b"void luaV_finishget(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                    };
-                    (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
-                        && (L.is_null() || {
-                            if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                            } else {
-                                __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                        };
+                        (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                            && (L.is_null()
+                                || {
+                                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                                    } else {
+                                        __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                               as *const u8 as
                                                               *const libc::c_char,
                                                           b"lvm.c\x00" as
@@ -2774,13 +2680,13 @@ pub unsafe extern "C" fn luaV_finishget(
                                                               libc::c_uint,
                                                           (*::std::mem::transmute::<&[u8; 82],
                                                                                     &[libc::c_char; 82]>(b"void luaV_finishget(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                            };
-                            0 != ((*(*io1).value_.gc).marked as libc::c_int
-                                ^ (1i32 << 0i32 | 1i32 << 1i32))
-                                & ((*(*L).l_G).currentwhite as libc::c_int
-                                    ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        })
-                } {
+                                    };
+                                    0 != ((*(*io1).value_.gc).marked as libc::c_int
+                                        ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                        & ((*(*L).l_G).currentwhite as libc::c_int
+                                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                })
+                    } {
                 } else {
                     if 0 != 0i32 {
                     } else {
@@ -2874,10 +2780,11 @@ pub unsafe extern "C" fn luaV_finishset(
                     slot = luaH_newkey(L, h, key)
                 }
                 *(slot as *mut TValue) = *val;
-                if 0 == (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 || {
-                    if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
+                if 0 == (*(slot as *mut TValue)).tt_ & 1i32 << 6i32
+                    || {
+                        if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
                                                  as *const u8 as
                                                  *const libc::c_char,
                                              b"lvm.c\x00" as *const u8 as
@@ -2885,13 +2792,14 @@ pub unsafe extern "C" fn luaV_finishset(
                                              217i32 as libc::c_uint,
                                              (*::std::mem::transmute::<&[u8; 82],
                                                                        &[libc::c_char; 82]>(b"void luaV_finishset(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                    };
-                    (*(slot as *mut TValue)).tt_ & 0x3fi32
-                        == (*(*(slot as *mut TValue)).value_.gc).tt as libc::c_int
-                        && (L.is_null() || {
-                            if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
-                            } else {
-                                __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
+                        };
+                        (*(slot as *mut TValue)).tt_ & 0x3fi32
+                            == (*(*(slot as *mut TValue)).value_.gc).tt as libc::c_int
+                            && (L.is_null()
+                                || {
+                                    if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
+                                    } else {
+                                        __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
                                                               as *const u8 as
                                                               *const libc::c_char,
                                                           b"lvm.c\x00" as
@@ -2901,13 +2809,14 @@ pub unsafe extern "C" fn luaV_finishset(
                                                               libc::c_uint,
                                                           (*::std::mem::transmute::<&[u8; 82],
                                                                                     &[libc::c_char; 82]>(b"void luaV_finishset(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                            };
-                            0 != ((*(*(slot as *mut TValue)).value_.gc).marked as libc::c_int
-                                ^ (1i32 << 0i32 | 1i32 << 1i32))
-                                & ((*(*L).l_G).currentwhite as libc::c_int
-                                    ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        })
-                } {
+                                    };
+                                    0 != ((*(*(slot as *mut TValue)).value_.gc).marked
+                                        as libc::c_int
+                                        ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                        & ((*(*L).l_G).currentwhite as libc::c_int
+                                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                })
+                    } {
                 } else {
                     if 0 != 0i32 {
                     } else {
@@ -2921,7 +2830,8 @@ pub unsafe extern "C" fn luaV_finishset(
                     };
                 };
                 (*h).flags = 0i32 as lu_byte;
-                if 0 != (*val).tt_ & 1i32 << 6i32 && 0 != (*h).marked as libc::c_int & 1i32 << 2i32
+                if 0 != (*val).tt_ & 1i32 << 6i32
+                    && 0 != (*h).marked as libc::c_int & 1i32 << 2i32
                     && {
                         if 0 != (*val).tt_ & 1i32 << 6i32 {
                         } else {
@@ -2988,10 +2898,11 @@ pub unsafe extern "C" fn luaV_finishset(
                 if (*slot).tt_ == 0i32 {
                     0i32
                 } else {
-                    if 0 != (*val).tt_ & 1i32 << 6i32 && {
-                        if (*t).tt_ == 5i32 | 1i32 << 6i32 {
-                        } else {
-                            __assert_fail(b"((((t))->tt_) == (((5) | (1 << 6))))\x00"
+                    if 0 != (*val).tt_ & 1i32 << 6i32
+                        && {
+                            if (*t).tt_ == 5i32 | 1i32 << 6i32 {
+                            } else {
+                                __assert_fail(b"((((t))->tt_) == (((5) | (1 << 6))))\x00"
                                                             as *const u8 as
                                                             *const libc::c_char,
                                                         b"lvm.c\x00" as
@@ -3001,10 +2912,10 @@ pub unsafe extern "C" fn luaV_finishset(
                                                             libc::c_uint,
                                                         (*::std::mem::transmute::<&[u8; 82],
                                                                                   &[libc::c_char; 82]>(b"void luaV_finishset(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                        };
-                        if (*(*t).value_.gc).tt as libc::c_int == 5i32 {
-                        } else {
-                            __assert_fail(b"(((t)->value_).gc)->tt == 5\x00"
+                            };
+                            if (*(*t).value_.gc).tt as libc::c_int == 5i32 {
+                            } else {
+                                __assert_fail(b"(((t)->value_).gc)->tt == 5\x00"
                                                             as *const u8 as
                                                             *const libc::c_char,
                                                         b"lvm.c\x00" as
@@ -3014,13 +2925,15 @@ pub unsafe extern "C" fn luaV_finishset(
                                                             libc::c_uint,
                                                         (*::std::mem::transmute::<&[u8; 82],
                                                                                   &[libc::c_char; 82]>(b"void luaV_finishset(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                        };
-                        0 != (*(&mut (*((*t).value_.gc as *mut GCUnion)).h as *mut Table_0)).marked
-                            as libc::c_int & 1i32 << 2i32
-                    } && {
-                        if 0 != (*val).tt_ & 1i32 << 6i32 {
-                        } else {
-                            __assert_fail(b"(((val)->tt_) & (1 << 6))\x00"
+                            };
+                            0 != (*(&mut (*((*t).value_.gc as *mut GCUnion)).h as *mut Table_0))
+                                .marked as libc::c_int
+                                & 1i32 << 2i32
+                        }
+                        && {
+                            if 0 != (*val).tt_ & 1i32 << 6i32 {
+                            } else {
+                                __assert_fail(b"(((val)->tt_) & (1 << 6))\x00"
                                                             as *const u8 as
                                                             *const libc::c_char,
                                                         b"lvm.c\x00" as
@@ -3030,10 +2943,10 @@ pub unsafe extern "C" fn luaV_finishset(
                                                             libc::c_uint,
                                                         (*::std::mem::transmute::<&[u8; 82],
                                                                                   &[libc::c_char; 82]>(b"void luaV_finishset(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                        };
-                        0 != (*(*val).value_.gc).marked as libc::c_int
-                            & (1i32 << 0i32 | 1i32 << 1i32)
-                    } {
+                            };
+                            0 != (*(*val).value_.gc).marked as libc::c_int
+                                & (1i32 << 0i32 | 1i32 << 1i32)
+                        } {
                         if (*t).tt_ == 5i32 | 1i32 << 6i32 {
                         } else {
                             __assert_fail(b"((((t))->tt_) == (((5) | (1 << 6))))\x00"
@@ -3060,10 +2973,11 @@ pub unsafe extern "C" fn luaV_finishset(
                     } else {
                     };
                     *(slot as *mut TValue) = *val;
-                    if 0 == (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 || {
-                        if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
-                        } else {
-                            __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
+                    if 0 == (*(slot as *mut TValue)).tt_ & 1i32 << 6i32
+                        || {
+                            if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
+                            } else {
+                                __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
                                                             as *const u8 as
                                                             *const libc::c_char,
                                                         b"lvm.c\x00" as
@@ -3073,13 +2987,14 @@ pub unsafe extern "C" fn luaV_finishset(
                                                             libc::c_uint,
                                                         (*::std::mem::transmute::<&[u8; 82],
                                                                                   &[libc::c_char; 82]>(b"void luaV_finishset(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                        };
-                        (*(slot as *mut TValue)).tt_ & 0x3fi32
-                            == (*(*(slot as *mut TValue)).value_.gc).tt as libc::c_int
-                            && (L.is_null() || {
-                                if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
-                                } else {
-                                    __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
+                            };
+                            (*(slot as *mut TValue)).tt_ & 0x3fi32
+                                == (*(*(slot as *mut TValue)).value_.gc).tt as libc::c_int
+                                && (L.is_null()
+                                    || {
+                                        if 0 != (*(slot as *mut TValue)).tt_ & 1i32 << 6i32 {
+                                        } else {
+                                            __assert_fail(b"((((((TValue *)(slot))))->tt_) & (1 << 6))\x00"
                                                                          as
                                                                          *const u8
                                                                          as
@@ -3093,13 +3008,14 @@ pub unsafe extern "C" fn luaV_finishset(
                                                                          libc::c_uint,
                                                                      (*::std::mem::transmute::<&[u8; 82],
                                                                                                &[libc::c_char; 82]>(b"void luaV_finishset(lua_State *, const TValue *, TValue *, StkId, const TValue *)\x00")).as_ptr());
-                                };
-                                0 != ((*(*(slot as *mut TValue)).value_.gc).marked as libc::c_int
-                                    ^ (1i32 << 0i32 | 1i32 << 1i32))
-                                    & ((*(*L).l_G).currentwhite as libc::c_int
-                                        ^ (1i32 << 0i32 | 1i32 << 1i32))
-                            })
-                    } {
+                                        };
+                                        0 != ((*(*(slot as *mut TValue)).value_.gc).marked
+                                            as libc::c_int
+                                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                    })
+                        } {
                     } else {
                         if 0 != 0i32 {
                         } else {
@@ -3155,21 +3071,25 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                         )).as_ptr(),
                     );
                 };
-                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                            668i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 32], &[libc::c_char; 32]>(
-                                b"void luaV_finishOp(lua_State *)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io1)->tt_) & (1 << 6))\x00" as *const u8
+                                    as *const libc::c_char,
+                                b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                668i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 32], &[libc::c_char; 32]>(
+                                    b"void luaV_finishOp(lua_State *)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io1).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {
@@ -3223,7 +3143,8 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                 res = (0 == res) as libc::c_int
             }
             if (*(*ci).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
-                as libc::c_uint == OP_JMP as libc::c_int as libc::c_uint
+                as libc::c_uint
+                == OP_JMP as libc::c_int as libc::c_uint
             {
             } else {
                 __assert_fail(b"(((OpCode)(((*ci->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_JMP\x00"
@@ -3234,8 +3155,9 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                                                         &[libc::c_char; 32]>(b"void luaV_finishOp(lua_State *)\x00")).as_ptr());
             };
             /* condition failed? */
-            if res != (inst >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
-                as libc::c_int
+            if res
+                != (inst >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
+                    as libc::c_int
             {
                 /* skip jump instruction */
                 (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize)
@@ -3364,7 +3286,8 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
         }
         41 => {
             if (*(*ci).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
-                as libc::c_uint == OP_TFORLOOP as libc::c_int as libc::c_uint
+                as libc::c_uint
+                == OP_TFORLOOP as libc::c_int as libc::c_uint
             {
             } else {
                 __assert_fail(b"(((OpCode)(((*ci->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_TFORLOOP\x00"
@@ -3380,7 +3303,9 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
         36 => {
             /* nresults >= 0? */
             if (inst >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                as libc::c_int - 1i32 >= 0i32
+                as libc::c_int
+                - 1i32
+                >= 0i32
             {
                 /* adjust results */
                 (*L).top = (*ci).top
@@ -3460,7 +3385,8 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                 );
             };
             (*(&mut (*((*top.offset(-1isize)).value_.gc as *mut GCUnion)).ts as *mut TString_0))
-                .shrlen as libc::c_int == 0i32
+                .shrlen as libc::c_int
+                == 0i32
         } {
             ((*top.offset(-2isize)).tt_ & 0xfi32 == 4i32
                 || (*top.offset(-2isize)).tt_ & 0xfi32 == 3i32 && {
@@ -3493,7 +3419,8 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                 );
             };
             (*(&mut (*((*top.offset(-2isize)).value_.gc as *mut GCUnion)).ts as *mut TString_0))
-                .shrlen as libc::c_int == 0i32
+                .shrlen as libc::c_int
+                == 0i32
         } {
             /* first operand is an empty string? */
             let mut io1: *mut TValue = top.offset(-2isize);
@@ -3510,21 +3437,25 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                         )).as_ptr(),
                     );
                 };
-                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                            485i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
-                                b"void luaV_concat(lua_State *, int)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io1)->tt_) & (1 << 6))\x00" as *const u8
+                                    as *const libc::c_char,
+                                b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                485i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
+                                    b"void luaV_concat(lua_State *, int)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io1).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {
@@ -3568,7 +3499,8 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
             };
             let mut tl: size_t = if (*(&mut (*((*top.offset(-1isize)).value_.gc as *mut GCUnion)).ts
                 as *mut TString_0))
-                .tt as libc::c_int == 4i32 | 0i32 << 4i32
+                .tt as libc::c_int
+                == 4i32 | 0i32 << 4i32
             {
                 if (*top.offset(-1isize)).tt_ & 0xfi32 == 4i32 {
                 } else {
@@ -3647,7 +3579,8 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                     );
                 };
                 if (*(*top.offset(-(n as isize)).offset(-1isize)).value_.gc).tt as libc::c_int
-                    & 0xfi32 == 4i32
+                    & 0xfi32
+                    == 4i32
                 {
                 } else {
                     __assert_fail(
@@ -3664,7 +3597,8 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                     .value_
                     .gc as *mut GCUnion))
                     .ts as *mut TString_0))
-                    .tt as libc::c_int == 4i32 | 0i32 << 4i32
+                    .tt as libc::c_int
+                    == 4i32 | 0i32 << 4i32
                 {
                     if (*top.offset(-(n as isize)).offset(-1isize)).tt_ & 0xfi32 == 4i32 {
                     } else {
@@ -3679,7 +3613,8 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                         );
                     };
                     if (*(*top.offset(-(n as isize)).offset(-1isize)).value_.gc).tt as libc::c_int
-                        & 0xfi32 == 4i32
+                        & 0xfi32
+                        == 4i32
                     {
                     } else {
                         __assert_fail(
@@ -3710,7 +3645,8 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                         );
                     };
                     if (*(*top.offset(-(n as isize)).offset(-1isize)).value_.gc).tt as libc::c_int
-                        & 0xfi32 == 4i32
+                        & 0xfi32
+                        == 4i32
                     {
                     } else {
                         __assert_fail(
@@ -3736,7 +3672,7 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                 } else {
                     9223372036854775807i64 as size_t
                 }.wrapping_div(::std::mem::size_of::<libc::c_char>() as libc::c_ulong)
-                    .wrapping_sub(tl)
+                .wrapping_sub(tl)
                 {
                     luaG_runerror(
                         L,
@@ -3801,21 +3737,24 @@ pub unsafe extern "C" fn luaV_concat(mut L: *mut lua_State_0, mut total: libc::c
                         )).as_ptr(),
                     );
                 };
-                (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                            507i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
-                                b"void luaV_concat(lua_State *, int)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                                b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                507i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
+                                    b"void luaV_concat(lua_State *, int)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {
@@ -3877,7 +3816,8 @@ unsafe extern "C" fn copy2buff(
         };
         let mut l: size_t = if (*(&mut (*((*top.offset(-(n as isize))).value_.gc as *mut GCUnion))
             .ts as *mut TString_0))
-            .tt as libc::c_int == 4i32 | 0i32 << 4i32
+            .tt as libc::c_int
+            == 4i32 | 0i32 << 4i32
         {
             if (*top.offset(-(n as isize))).tt_ & 0xfi32 == 4i32 {
             } else {
@@ -4079,7 +4019,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     let mut io1: *mut TValue = ra;
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4280,9 +4221,9 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         & !((!(0i32 as Instruction)) << 9i32) << 0i32)
                         as libc::c_int;
                     (*io).tt_ = 1i32;
-                    if !(0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int)
+                    if !(0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int)
                     {
                         continue;
                     }
@@ -4367,7 +4308,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     )).v;
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4380,10 +4322,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -4489,7 +4431,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 7 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4509,7 +4452,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     );
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4522,10 +4466,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_0: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_0: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -4635,7 +4579,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     )).v;
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4648,10 +4593,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_2: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_2: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -4668,7 +4614,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4681,10 +4628,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_1: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_1: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -4730,51 +4677,64 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         if (*slot_1).tt_ == 0i32 {
                             0i32
                         } else {
-                            if 0 != (*rc_1).tt_ & 1i32 << 6i32 && {
-                                if (*upval_0).tt_ == 5i32 | 1i32 << 6i32 {
-                                } else {
-                                    __assert_fail(
-                                        b"((((upval))->tt_) == (((5) | (1 << 6))))\x00" as *const u8
-                                            as *const libc::c_char,
-                                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                                        853i32 as libc::c_uint,
-                                        (*::std::mem::transmute::<&[u8; 31], &[libc::c_char; 31]>(
-                                            b"void luaV_execute(lua_State *)\x00",
-                                        )).as_ptr(),
-                                    );
-                                };
-                                if (*(*upval_0).value_.gc).tt as libc::c_int == 5i32 {
-                                } else {
-                                    __assert_fail(
-                                        b"(((upval)->value_).gc)->tt == 5\x00" as *const u8
-                                            as *const libc::c_char,
-                                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                                        853i32 as libc::c_uint,
-                                        (*::std::mem::transmute::<&[u8; 31], &[libc::c_char; 31]>(
-                                            b"void luaV_execute(lua_State *)\x00",
-                                        )).as_ptr(),
-                                    );
-                                };
-                                0 != (*(&mut (*((*upval_0).value_.gc as *mut GCUnion)).h
-                                    as *mut Table_0))
-                                    .marked as libc::c_int
-                                    & 1i32 << 2i32
-                            } && {
-                                if 0 != (*rc_1).tt_ & 1i32 << 6i32 {
-                                } else {
-                                    __assert_fail(
-                                        b"(((rc)->tt_) & (1 << 6))\x00" as *const u8
-                                            as *const libc::c_char,
-                                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                                        853i32 as libc::c_uint,
-                                        (*::std::mem::transmute::<&[u8; 31], &[libc::c_char; 31]>(
-                                            b"void luaV_execute(lua_State *)\x00",
-                                        )).as_ptr(),
-                                    );
-                                };
-                                0 != (*(*rc_1).value_.gc).marked as libc::c_int
-                                    & (1i32 << 0i32 | 1i32 << 1i32)
-                            } {
+                            if 0 != (*rc_1).tt_ & 1i32 << 6i32
+                                && {
+                                    if (*upval_0).tt_ == 5i32 | 1i32 << 6i32 {
+                                    } else {
+                                        __assert_fail(
+                                            b"((((upval))->tt_) == (((5) | (1 << 6))))\x00"
+                                                as *const u8
+                                                as *const libc::c_char,
+                                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                            853i32 as libc::c_uint,
+                                            (*::std::mem::transmute::<
+                                                &[u8; 31],
+                                                &[libc::c_char; 31],
+                                            >(
+                                                b"void luaV_execute(lua_State *)\x00"
+                                            )).as_ptr(),
+                                        );
+                                    };
+                                    if (*(*upval_0).value_.gc).tt as libc::c_int == 5i32 {
+                                    } else {
+                                        __assert_fail(
+                                            b"(((upval)->value_).gc)->tt == 5\x00" as *const u8
+                                                as *const libc::c_char,
+                                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                            853i32 as libc::c_uint,
+                                            (*::std::mem::transmute::<
+                                                &[u8; 31],
+                                                &[libc::c_char; 31],
+                                            >(
+                                                b"void luaV_execute(lua_State *)\x00"
+                                            )).as_ptr(),
+                                        );
+                                    };
+                                    0 != (*(&mut (*((*upval_0).value_.gc as *mut GCUnion)).h
+                                        as *mut Table_0))
+                                        .marked
+                                        as libc::c_int
+                                        & 1i32 << 2i32
+                                }
+                                && {
+                                    if 0 != (*rc_1).tt_ & 1i32 << 6i32 {
+                                    } else {
+                                        __assert_fail(
+                                            b"(((rc)->tt_) & (1 << 6))\x00" as *const u8
+                                                as *const libc::c_char,
+                                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                            853i32 as libc::c_uint,
+                                            (*::std::mem::transmute::<
+                                                &[u8; 31],
+                                                &[libc::c_char; 31],
+                                            >(
+                                                b"void luaV_execute(lua_State *)\x00"
+                                            )).as_ptr(),
+                                        );
+                                    };
+                                    0 != (*(*rc_1).value_.gc).marked as libc::c_int
+                                        & (1i32 << 0i32 | 1i32 << 1i32)
+                                } {
                                 if (*upval_0).tt_ == 5i32 | 1i32 << 6i32 {
                                 } else {
                                     __assert_fail(
@@ -4933,7 +4893,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 10 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4946,10 +4907,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_3: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_3: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -4966,7 +4928,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -4979,10 +4942,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_2: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_2: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -5028,51 +4991,64 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         if (*slot_2).tt_ == 0i32 {
                             0i32
                         } else {
-                            if 0 != (*rc_2).tt_ & 1i32 << 6i32 && {
-                                if (*ra).tt_ == 5i32 | 1i32 << 6i32 {
-                                } else {
-                                    __assert_fail(
-                                        b"((((ra))->tt_) == (((5) | (1 << 6))))\x00" as *const u8
-                                            as *const libc::c_char,
-                                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                                        865i32 as libc::c_uint,
-                                        (*::std::mem::transmute::<&[u8; 31], &[libc::c_char; 31]>(
-                                            b"void luaV_execute(lua_State *)\x00",
-                                        )).as_ptr(),
-                                    );
-                                };
-                                if (*(*ra).value_.gc).tt as libc::c_int == 5i32 {
-                                } else {
-                                    __assert_fail(
-                                        b"(((ra)->value_).gc)->tt == 5\x00" as *const u8
-                                            as *const libc::c_char,
-                                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                                        865i32 as libc::c_uint,
-                                        (*::std::mem::transmute::<&[u8; 31], &[libc::c_char; 31]>(
-                                            b"void luaV_execute(lua_State *)\x00",
-                                        )).as_ptr(),
-                                    );
-                                };
-                                0 != (*(&mut (*((*ra).value_.gc as *mut GCUnion)).h
-                                    as *mut Table_0))
-                                    .marked as libc::c_int
-                                    & 1i32 << 2i32
-                            } && {
-                                if 0 != (*rc_2).tt_ & 1i32 << 6i32 {
-                                } else {
-                                    __assert_fail(
-                                        b"(((rc)->tt_) & (1 << 6))\x00" as *const u8
-                                            as *const libc::c_char,
-                                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                                        865i32 as libc::c_uint,
-                                        (*::std::mem::transmute::<&[u8; 31], &[libc::c_char; 31]>(
-                                            b"void luaV_execute(lua_State *)\x00",
-                                        )).as_ptr(),
-                                    );
-                                };
-                                0 != (*(*rc_2).value_.gc).marked as libc::c_int
-                                    & (1i32 << 0i32 | 1i32 << 1i32)
-                            } {
+                            if 0 != (*rc_2).tt_ & 1i32 << 6i32
+                                && {
+                                    if (*ra).tt_ == 5i32 | 1i32 << 6i32 {
+                                    } else {
+                                        __assert_fail(
+                                            b"((((ra))->tt_) == (((5) | (1 << 6))))\x00"
+                                                as *const u8
+                                                as *const libc::c_char,
+                                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                            865i32 as libc::c_uint,
+                                            (*::std::mem::transmute::<
+                                                &[u8; 31],
+                                                &[libc::c_char; 31],
+                                            >(
+                                                b"void luaV_execute(lua_State *)\x00"
+                                            )).as_ptr(),
+                                        );
+                                    };
+                                    if (*(*ra).value_.gc).tt as libc::c_int == 5i32 {
+                                    } else {
+                                        __assert_fail(
+                                            b"(((ra)->value_).gc)->tt == 5\x00" as *const u8
+                                                as *const libc::c_char,
+                                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                            865i32 as libc::c_uint,
+                                            (*::std::mem::transmute::<
+                                                &[u8; 31],
+                                                &[libc::c_char; 31],
+                                            >(
+                                                b"void luaV_execute(lua_State *)\x00"
+                                            )).as_ptr(),
+                                        );
+                                    };
+                                    0 != (*(&mut (*((*ra).value_.gc as *mut GCUnion)).h
+                                        as *mut Table_0))
+                                        .marked
+                                        as libc::c_int
+                                        & 1i32 << 2i32
+                                }
+                                && {
+                                    if 0 != (*rc_2).tt_ & 1i32 << 6i32 {
+                                    } else {
+                                        __assert_fail(
+                                            b"(((rc)->tt_) & (1 << 6))\x00" as *const u8
+                                                as *const libc::c_char,
+                                            b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                                            865i32 as libc::c_uint,
+                                            (*::std::mem::transmute::<
+                                                &[u8; 31],
+                                                &[libc::c_char; 31],
+                                            >(
+                                                b"void luaV_execute(lua_State *)\x00"
+                                            )).as_ptr(),
+                                        );
+                                    };
+                                    0 != (*(*rc_2).value_.gc).marked as libc::c_int
+                                        & (1i32 << 0i32 | 1i32 << 1i32)
+                                } {
                                 if (*ra).tt_ == 5i32 | 1i32 << 6i32 {
                                 } else {
                                     __assert_fail(
@@ -5286,7 +5262,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     let mut aux: *const TValue = 0 as *const TValue;
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5306,7 +5283,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     );
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5319,10 +5297,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_3: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_3: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -5501,7 +5479,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 13 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5514,10 +5493,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_5: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_5: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -5534,7 +5514,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5547,10 +5528,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_4: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_4: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -5645,7 +5626,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 14 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5658,10 +5640,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_6: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_6: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -5678,7 +5661,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5691,10 +5675,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_5: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_5: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -5789,7 +5773,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 15 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5802,10 +5787,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_7: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_7: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -5822,7 +5808,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5835,10 +5822,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_6: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_6: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -5934,7 +5921,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     /* float division (always with floats) */
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5947,10 +5935,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_8: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_8: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -5967,7 +5956,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -5980,10 +5970,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_7: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_7: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6046,7 +6036,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 20 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6059,10 +6050,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_9: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_9: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6079,7 +6071,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6092,10 +6085,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_8: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_8: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6159,7 +6152,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 21 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6172,10 +6166,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_10: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_10: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6192,7 +6187,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6205,10 +6201,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_9: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_9: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6272,7 +6268,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 22 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6285,10 +6282,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_11: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_11: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6305,7 +6303,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6318,10 +6317,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_10: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_10: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6385,7 +6384,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 23 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6398,10 +6398,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_12: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_12: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6418,7 +6419,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6431,10 +6433,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_11: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_11: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6497,7 +6499,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 24 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6510,10 +6513,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_13: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_13: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6530,7 +6534,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6543,10 +6548,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_12: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_12: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6609,7 +6614,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 16 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6622,10 +6628,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_14: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_14: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6642,7 +6649,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6655,10 +6663,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_13: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_13: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6758,7 +6766,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     /* floor division */
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6771,10 +6780,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_15: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_15: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6791,7 +6801,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6804,10 +6815,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_14: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_14: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -6901,7 +6912,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 17 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6914,10 +6926,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_16: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_16: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -6934,7 +6947,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -6947,10 +6961,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_15: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_15: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -7013,7 +7027,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 25 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7083,7 +7098,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 26 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7134,7 +7150,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 27 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7175,7 +7192,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 28 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7334,7 +7352,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 31 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7347,10 +7366,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rb_21: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rb_21: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 + 9i32
+                            & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -7367,7 +7387,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7380,10 +7401,10 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let mut rc_16: *mut TValue = if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
-                        & 1i32 << 9i32 - 1i32
+                    let mut rc_16: *mut TValue = if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                     {
                         k.offset(
                             ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
@@ -7423,7 +7444,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 32 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7438,7 +7460,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7455,7 +7478,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         L,
                         if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
                             & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                            as libc::c_int & 1i32 << 9i32 - 1i32
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                         {
                             k.offset(
                                 ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -7473,7 +7497,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         },
                         if 0 != (i >> 0i32 + 6i32 + 8i32
                             & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                            as libc::c_int & 1i32 << 9i32 - 1i32
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                         {
                             k.offset(
                                 ((i >> 0i32 + 6i32 + 8i32
@@ -7489,9 +7514,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                     as libc::c_int as isize,
                             )
                         },
-                    )
-                        != (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
-                            as libc::c_int
+                    ) != (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
+                        as libc::c_int
                     {
                         (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize)
                     } else {
@@ -7516,7 +7540,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 33 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7531,7 +7556,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 2i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 2i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgK as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7548,7 +7574,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         L,
                         if 0 != (i >> 0i32 + 6i32 + 8i32 + 9i32
                             & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                            as libc::c_int & 1i32 << 9i32 - 1i32
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                         {
                             k.offset(
                                 ((i >> 0i32 + 6i32 + 8i32 + 9i32
@@ -7566,7 +7593,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         },
                         if 0 != (i >> 0i32 + 6i32 + 8i32
                             & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                            as libc::c_int & 1i32 << 9i32 - 1i32
+                            as libc::c_int
+                            & 1i32 << 9i32 - 1i32
                         {
                             k.offset(
                                 ((i >> 0i32 + 6i32 + 8i32
@@ -7582,9 +7610,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                     as libc::c_int as isize,
                             )
                         },
-                    )
-                        != (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
-                            as libc::c_int
+                    ) != (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
+                        as libc::c_int
                     {
                         (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize)
                     } else {
@@ -7607,9 +7634,9 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     continue;
                 }
                 34 => {
-                    if 0 != if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
+                    if 0 != if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
                     {
                         ((*ra).tt_ == 0i32 || (*ra).tt_ == 1i32 && {
                             if (*ra).tt_ == 1i32 {
@@ -7666,7 +7693,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 35 => {
                     if (luaP_opmodes[(i >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                                          as OpCode as usize] as libc::c_int
-                        >> 4i32 & 3i32) as OpArgMask as libc::c_uint
+                        >> 4i32
+                        & 3i32) as OpArgMask as libc::c_uint
                         == OpArgR as libc::c_int as libc::c_uint
                     {
                     } else {
@@ -7684,9 +7712,9 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             & !((!(0i32 as Instruction)) << 9i32) << 0i32)
                             as libc::c_int as isize,
                     );
-                    if 0 != if 0 != (i >> 0i32 + 6i32 + 8i32
-                        & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int
+                    if 0 != if 0
+                        != (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
+                            as libc::c_int
                     {
                         ((*rb_22).tt_ == 0i32 || (*rb_22).tt_ == 1i32 && {
                             if (*rb_22).tt_ == 1i32 {
@@ -7797,7 +7825,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         as libc::c_int;
                     let mut nresults: libc::c_int = (i >> 0i32 + 6i32 + 8i32
                         & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int - 1i32;
+                        as libc::c_int
+                        - 1i32;
                     if b_3 != 0i32 {
                         /* else previous instruction set top */
                         (*L).top = ra.offset(b_3 as isize)
@@ -7827,7 +7856,9 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         (*L).top = ra.offset(b_4 as isize)
                     }
                     if (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int - 1i32 == -1i32
+                        as libc::c_int
+                        - 1i32
+                        == -1i32
                     {
                     } else {
                         __assert_fail(b"(((int)(((i)>>((0 + 6) + 8)) & ((~((~(Instruction)0)<<(9)))<<(0))))) - 1 == (-1)\x00"
@@ -8230,7 +8261,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     let mut pstep: *mut TValue = ra.offset(2isize);
                     let mut ilimit: lua_Integer = 0;
                     let mut stopnow: libc::c_int = 0;
-                    if (*init).tt_ == 3i32 | 1i32 << 4i32 && (*pstep).tt_ == 3i32 | 1i32 << 4i32
+                    if (*init).tt_ == 3i32 | 1i32 << 4i32
+                        && (*pstep).tt_ == 3i32 | 1i32 << 4i32
                         && {
                             if (*pstep).tt_ == 3i32 | 1i32 << 4i32 {
                             } else {
@@ -8791,7 +8823,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     /* required results */
                     let mut b_6: libc::c_int = (i >> 0i32 + 6i32 + 8i32 + 9i32
                         & !((!(0i32 as Instruction)) << 9i32) << 0i32)
-                        as libc::c_int - 1i32;
+                        as libc::c_int
+                        - 1i32;
                     let mut j: libc::c_int = 0;
                     let mut n_0: libc::c_int = base.wrapping_offset_from((*ci).func) as libc::c_long
                         as libc::c_int
@@ -8956,8 +8989,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
             /* jump back */
             (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
                 ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
-                    as libc::c_int - ((1i32 << 9i32 + 9i32) - 1i32 >> 1i32))
-                    as isize,
+                    as libc::c_int
+                    - ((1i32 << 9i32 + 9i32) - 1i32 >> 1i32)) as isize,
             )
         }
     }
@@ -9042,21 +9075,22 @@ unsafe extern "C" fn pushclosure(
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lvm.c\x00" as *const u8 as *const libc::c_char,
-                    640i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 63], &[libc::c_char; 63]>(
-                        b"void pushclosure(lua_State *, Proto *, UpVal **, StkId, StkId)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lvm.c\x00" as *const u8 as *const libc::c_char,
+                        640i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 63], &[libc::c_char; 63]>(
+                            b"void pushclosure(lua_State *, Proto *, UpVal **, StkId, StkId)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -9361,8 +9395,9 @@ pub unsafe extern "C" fn luaV_shiftl(mut x: lua_Integer, mut y: lua_Integer) -> 
         } else {
             return (x as lua_Unsigned >> -y as lua_Unsigned) as lua_Integer;
         }
-    } else if y >= (::std::mem::size_of::<lua_Integer>() as libc::c_ulong)
-        .wrapping_mul(8i32 as libc::c_ulong) as libc::c_int as libc::c_longlong
+    } else if y
+        >= (::std::mem::size_of::<lua_Integer>() as libc::c_ulong)
+            .wrapping_mul(8i32 as libc::c_ulong) as libc::c_int as libc::c_longlong
     {
         return 0i32 as lua_Integer;
     } else {

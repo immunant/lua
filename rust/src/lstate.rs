@@ -1,18 +1,23 @@
-use lobject::{GCObject, TValue, lua_TValue, Value, Table, StkId, TString};
-use ldebug::{lua_Debug};
-use ldo::{lua_longjmp};
-use lfunc::{UpVal};
+use ldebug::lua_Debug;
+use ldo::lua_longjmp;
+use lfunc::UpVal;
+use lobject::{
+    lua_TValue, CClosure, Closure, GCObject, LClosure, Proto, StkId, TString, TValue, Table, Udata,
+    Value,
+};
 
 use std::boxed::Box;
 use std::convert::From;
+use std::mem;
+use std::ptr;
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -40,16 +45,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -122,7 +127,8 @@ pub type __time_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 pub type Value_0 = Value;
-#[derive(Copy, Clone)]
+
+#[derive(Clone)]
 #[repr(C)]
 pub struct lua_State {
     pub next: *mut GCObject,
@@ -132,7 +138,7 @@ pub struct lua_State {
     pub status: lu_byte,
     pub top: StkId,
     pub l_G: *mut global_State,
-    pub ci: *mut CallInfo_0,
+    pub ci: *mut CallInfo,
     pub oldpc: *const Instruction,
     pub stack_last: StkId,
     pub stack: StkId,
@@ -152,39 +158,18 @@ pub struct lua_State {
     pub allowhook: lu_byte,
 }
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
 pub type sig_atomic_t = __sig_atomic_t;
 /* Functions to be called by the debugger in specific events */
 pub type lua_Hook = Option<unsafe extern "C" fn(_: *mut lua_State_0, _: *mut lua_Debug) -> ()>;
-/*
-** {==============================================================
-** some useful macros
-** ===============================================================
-*/
-/* }============================================================== */
-/*
-** {==============================================================
-** compatibility macros for unsigned conversions
-** ===============================================================
-*/
-/* }============================================================== */
-/*
-** {======================================================================
-** Debug API
-** =======================================================================
-*/
-/*
-** Event codes
-*/
-/*
-** Event masks
-*/
+
 pub type lua_Debug_0 = lua_Debug;
 /* active function */
-#[derive(Copy, Clone)]
+
+#[derive(Clone)]
 #[repr(C)]
 pub struct CallInfo {
     pub func: StkId,
@@ -265,49 +250,7 @@ pub struct unnamed_1 {
 ** must be an unsigned with (at least) 4 bytes (see details in lopcodes.h)
 */
 pub type Instruction = libc::c_uint;
-/* macro defining a nil value */
-/* raw type tag of a TValue */
-/* tag with no variants (bits 0-3) */
-/* type tag of a TValue (bits 0-3 for tags + variant bits 4-5) */
-/* type tag of a TValue with no variants (bits 0-3) */
-/* Macros to test type */
-/* Macros to access values */
-/* a dead value may get the 'gc' field, but cannot access its contents */
-/* Macros for internal tests */
-/* Macros to set values */
-/*
-** different types of assignments, according to destination
-*/
-/* from stack to (same) stack */
-/* to stack (not from same stack) */
-/* from table to same table */
-/* to new object */
-/* to table (define it as an expression to be used in macros) */
-/*
-** {======================================================
-** types and prototypes
-** =======================================================
-*/
-/* index to stack elements */
-/*
-** Common Header for all collectable objects (in macro form, to be
-** included in other objects)
-*/
-/*
-** Common type has only the common header
-*/
-/*
-** Tagged Values. This is the basic representation of values in Lua,
-** an actual value plus a tag with its type.
-*/
-/*
-** Union of all Lua values
-*/
-/*
-** basic types
-*/
-/* minimum Lua stack available to a C function */
-/* predefined values in the registry */
+
 /* type of numbers in Lua */
 pub type lua_Number = libc::c_double;
 /* type for integer functions */
@@ -316,46 +259,7 @@ pub type lua_Integer = libc::c_longlong;
 ** Type for C functions registered with Lua
 */
 pub type lua_CFunction = Option<unsafe extern "C" fn(_: *mut lua_State_0) -> libc::c_int>;
-/*
-** $Id: lobject.h,v 2.116 2015/11/03 18:33:10 roberto Exp roberto $
-** Type definitions for Lua objects
-** See Copyright Notice in lua.h
-*/
-/*
-** Extra tags for non-values
-*/
-/* function prototypes */
-/* removed keys in tables */
-/*
-** number of all possible tags (including LUA_TNONE but excluding DEADKEY)
-*/
-/*
-** tags for Tagged Values have the following use of bits:
-** bits 0-3: actual tag (a LUA_T* value)
-** bits 4-5: variant bits
-** bit 6: whether value is collectable
-*/
-/*
-** LUA_TFUNCTION variants:
-** 0 - Lua function
-** 1 - light C function
-** 2 - regular C function (closure)
-*/
-/* Variant tags for functions */
-/* Lua closure */
-/* light C function */
-/* C closure */
-/* Variant tags for strings */
-/* short strings */
-/* long strings */
-/* Variant tags for numbers */
-/* float numbers */
-/* integer numbers */
-/* Bit mark for collectable types */
-/* mark a tag as collectable */
-/*
-** Common type for all collectable objects
-*/
+
 pub type GCObject_0 = GCObject;
 /*
 ** Information about a call.
@@ -544,7 +448,7 @@ pub struct L_EXTRA {
 ** Main thread combines a thread state and the global state
 */
 pub type LG = LG_0;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct LG_0 {
     pub l: LX,
@@ -565,7 +469,7 @@ pub struct LG_0 {
 ** thread state + extra space
 */
 pub type LX = LX_0;
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct LX_0 {
     pub extra_: [lu_byte; 16],
@@ -575,55 +479,15 @@ pub type Table_0 = Table;
 /*
 ** Union of all collectable objects (only for conversions)
 */
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Proto {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub numparams: lu_byte,
-    pub is_vararg: lu_byte,
-    pub maxstacksize: lu_byte,
-    pub sizeupvalues: libc::c_int,
-    pub sizek: libc::c_int,
-    pub sizecode: libc::c_int,
-    pub sizelineinfo: libc::c_int,
-    pub sizep: libc::c_int,
-    pub sizelocvars: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
-    pub k: *mut TValue,
-    pub code: *mut Instruction,
-    pub p: *mut *mut Proto,
-    pub lineinfo: *mut libc::c_int,
-    pub locvars: *mut LocVar,
-    pub upvalues: *mut Upvaldesc,
-    pub cache: *mut LClosure,
-    pub source: *mut TString,
-    pub gclist: *mut GCObject,
-}
-/* last-created closure with this prototype */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub p: *mut Proto,
-    pub upvals: [*mut UpVal; 0],
+    pub gc: GCObject,
+    pub ts: TString_0,
+    pub u: Udata,
+    pub cl: Closure,
+    pub h: Table,
+    pub p: Proto,
+    pub th: lua_State,
 }
 /*
 **  Get the address of memory block inside 'Udata'.
@@ -652,39 +516,11 @@ pub struct LocVar_0 {
     pub startpc: libc::c_int,
     pub endpc: libc::c_int,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Closure {
-    c: CClosure,
-    l: LClosure_0,
-}
 pub type LClosure_0 = LClosure;
 /*
 ** Closures
 */
-pub type CClosure = CClosure_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CClosure_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub f: lua_CFunction,
-    pub upvalue: [TValue; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Udata {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub ttuv_: lu_byte,
-    pub metatable: *mut Table,
-    pub len: size_t,
-    pub user_: Value_0,
-}
+pub type CClosure_0 = CClosure;
 /*
 ** $Id: ldo.h,v 2.28 2015/11/23 11:29:43 roberto Exp roberto $
 ** Stack and Call structure of Lua
@@ -779,7 +615,8 @@ unsafe extern "C" fn close_state(mut L: *mut lua_State_0) -> () {
         if (*((L as *mut libc::c_char)
             .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
             as *mut libc::c_void as *mut L_EXTRA))
-            .lock == 1i32
+            .lock
+            == 1i32
             && (*((L as *mut libc::c_char)
                 .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
                 as *mut libc::c_void as *mut L_EXTRA))
@@ -939,21 +776,22 @@ unsafe extern "C" fn init_registry(mut L: *mut lua_State_0, mut g: *mut global_S
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lstate.c\x00" as *const u8 as *const libc::c_char,
-                    188i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
-                        b"void init_registry(lua_State *, global_State *)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lstate.c\x00" as *const u8 as *const libc::c_char,
+                        188i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
+                            b"void init_registry(lua_State *, global_State *)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -996,21 +834,22 @@ unsafe extern "C" fn init_registry(mut L: *mut lua_State_0, mut g: *mut global_S
                 )).as_ptr(),
             );
         };
-        (*io_0).tt_ & 0x3fi32 == (*(*io_0).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io_0).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lstate.c\x00" as *const u8 as *const libc::c_char,
-                    191i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
-                        b"void init_registry(lua_State *, global_State *)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io_0).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io_0).tt_ & 0x3fi32 == (*(*io_0).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io_0).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lstate.c\x00" as *const u8 as *const libc::c_char,
+                        191i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
+                            b"void init_registry(lua_State *, global_State *)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io_0).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -1055,21 +894,22 @@ unsafe extern "C" fn init_registry(mut L: *mut lua_State_0, mut g: *mut global_S
                 )).as_ptr(),
             );
         };
-        (*io_1).tt_ & 0x3fi32 == (*(*io_1).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io_1).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lstate.c\x00" as *const u8 as *const libc::c_char,
-                    194i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
-                        b"void init_registry(lua_State *, global_State *)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io_1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io_1).tt_ & 0x3fi32 == (*(*io_1).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io_1).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lstate.c\x00" as *const u8 as *const libc::c_char,
+                        194i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
+                            b"void init_registry(lua_State *, global_State *)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io_1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -1307,21 +1147,22 @@ pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State_0) -> *mut lua_Stat
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lstate.c\x00" as *const u8 as *const libc::c_char,
-                    268i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 38], &[libc::c_char; 38]>(
-                        b"lua_State *lua_newthread(lua_State *)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lstate.c\x00" as *const u8 as *const libc::c_char,
+                        268i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 38], &[libc::c_char; 38]>(
+                            b"lua_State *lua_newthread(lua_State *)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -1466,12 +1307,15 @@ pub unsafe extern "C" fn luaE_freethread(mut L: *mut lua_State_0, mut L1: *mut l
 
 impl From<i32> for unnamed {
     fn from(item: i32) -> Self {
-        let l = unnamed_1 { base: 0 as StkId, savedpc: 0 as *const Instruction };
+        let l = unnamed_1 {
+            base: 0 as StkId,
+            savedpc: 0 as *const Instruction,
+        };
         unnamed { l }
     }
 }
 
-pub extern "C" fn luaE_newCI(size: size_t) -> Box<CallInfo_0> {
+pub extern "C" fn luaE_newCI(size: size_t) -> Box<CallInfo> {
     let ci = Box::new(CallInfo {
         func: 0 as StkId,
         top: 0 as StkId,
@@ -1486,8 +1330,8 @@ pub extern "C" fn luaE_newCI(size: size_t) -> Box<CallInfo_0> {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State_0) -> *mut CallInfo_0 {
-    let ci_box: Box<CallInfo_0> = luaE_newCI(::std::mem::size_of::<CallInfo_0>() as libc::c_ulong,);
+pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> *mut CallInfo {
+    let ci_box: Box<CallInfo> = luaE_newCI(::std::mem::size_of::<CallInfo>() as libc::c_ulong);
     if (*(*L).ci).next.is_null() {
     } else {
         __assert_fail(
@@ -1508,10 +1352,10 @@ pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State_0) -> *mut CallInfo
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn luaE_shrinkCI(mut L: *mut lua_State_0) -> () {
-    let mut ci: *mut CallInfo_0 = (*L).ci;
+pub unsafe extern "C" fn luaE_shrinkCI(mut L: *mut lua_State) -> () {
+    let mut ci: *mut CallInfo = (*L).ci;
     /* next's next */
-    let mut next2: *mut CallInfo_0 = 0 as *mut CallInfo_0;
+    let mut next2: *mut CallInfo = 0 as *mut CallInfo;
     /* while there are two nexts */
     while !(*ci).next.is_null() && {
         next2 = (*(*ci).next).next;

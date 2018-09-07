@@ -1,13 +1,13 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TString, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -35,16 +35,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -57,7 +57,7 @@ pub type size_t = libc::c_ulong;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -285,18 +285,7 @@ pub type global_State_0 = global_State;
 ** Header for string value; string bytes follow the end of this structure
 ** (aligned according to 'UTString'; see next).
 */
-pub type TString = TString_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct TString_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub extra: lu_byte,
-    pub shrlen: lu_byte,
-    pub hash: libc::c_uint,
-    pub u: unnamed_2,
-}
+pub type TString_0 = TString;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed_2 {
@@ -416,20 +405,6 @@ pub struct CClosure {
     pub gclist: *mut GCObject,
     pub f: lua_CFunction,
     pub upvalue: [TValue; 0],
-}
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto_0,
-    th: lua_State,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -896,9 +871,11 @@ unsafe extern "C" fn DumpHeader(mut D: *mut DumpState) -> () {
     );
     DumpByte(
         ((*::std::mem::transmute::<&[u8; 2], &[libc::c_char; 2]>(b"5\x00"))[0usize] as libc::c_int
-            - '0' as i32) * 16i32
+            - '0' as i32)
+            * 16i32
             + ((*::std::mem::transmute::<&[u8; 2], &[libc::c_char; 2]>(b"3\x00"))[0usize]
-                as libc::c_int - '0' as i32),
+                as libc::c_int
+                - '0' as i32),
         D,
     );
     DumpByte(0i32, D);

@@ -1,13 +1,13 @@
-use lstate::{lua_State, global_State, CallInfo, stringtable};
-use lfunc::{UpVal};
+use lfunc::UpVal;
+use lstate::{global_State, lua_State, stringtable, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -76,16 +76,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -206,11 +206,11 @@ pub type lua_Unsigned = libc::c_ulonglong;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union Closure {
-    c: CClosure,
-    l: LClosure_0,
+    pub c: CClosure,
+    pub l: LClosure_0,
 }
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -313,8 +313,8 @@ pub type Node = Node_0;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union TKey {
-    nk: unnamed_1,
-    tvk: TValue,
+    pub nk: unnamed_1,
+    pub tvk: TValue,
 }
 pub const TM_INDEX: TMS = 0;
 /*
@@ -622,20 +622,6 @@ pub struct _IO_marker {
     pub _pos: libc::c_int,
 }
 pub const TM_BOR: TMS = 14;
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
 /*
 ** $Id: ltests.h,v 2.49 2015/09/22 14:18:24 roberto Exp roberto $
 ** Internal Header for Debugging of the Lua Implementation
@@ -1093,10 +1079,11 @@ pub unsafe extern "C" fn luaO_arith(
                 1i32
             } else {
                 luaV_tointeger(p1, &mut i1, 0i32)
-            } && 0 != if (*p2).tt_ == 3i32 | 1i32 << 4i32 {
-                if (*p2).tt_ == 3i32 | 1i32 << 4i32 {
-                } else {
-                    __assert_fail(b"((((p2))->tt_) == ((3 | (1 << 4))))\x00"
+            } && 0
+                != if (*p2).tt_ == 3i32 | 1i32 << 4i32 {
+                    if (*p2).tt_ == 3i32 | 1i32 << 4i32 {
+                    } else {
+                        __assert_fail(b"((((p2))->tt_) == ((3 | (1 << 4))))\x00"
                                                  as *const u8 as
                                                  *const libc::c_char,
                                              b"lobject.c\x00" as *const u8 as
@@ -1104,12 +1091,12 @@ pub unsafe extern "C" fn luaO_arith(
                                              131i32 as libc::c_uint,
                                              (*::std::mem::transmute::<&[u8; 76],
                                                                        &[libc::c_char; 76]>(b"void luaO_arith(lua_State *, int, const TValue *, const TValue *, TValue *)\x00")).as_ptr());
-                };
-                i2 = (*p2).value_.i;
-                1i32
-            } else {
-                luaV_tointeger(p2, &mut i2, 0i32)
-            } {
+                    };
+                    i2 = (*p2).value_.i;
+                    1i32
+                } else {
+                    luaV_tointeger(p2, &mut i2, 0i32)
+                } {
                 let mut io: *mut TValue = res;
                 (*io).value_.i = intarith(L, op, i1, i2);
                 (*io).tt_ = 3i32 | 1i32 << 4i32;
@@ -1137,10 +1124,11 @@ pub unsafe extern "C" fn luaO_arith(
                 1i32
             } else {
                 luaV_tonumber_(p1, &mut n1)
-            } && 0 != if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
-                if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
-                } else {
-                    __assert_fail(b"((((p2))->tt_) == ((3 | (0 << 4))))\x00"
+            } && 0
+                != if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
+                    if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
+                    } else {
+                        __assert_fail(b"((((p2))->tt_) == ((3 | (0 << 4))))\x00"
                                                  as *const u8 as
                                                  *const libc::c_char,
                                              b"lobject.c\x00" as *const u8 as
@@ -1148,12 +1136,12 @@ pub unsafe extern "C" fn luaO_arith(
                                              139i32 as libc::c_uint,
                                              (*::std::mem::transmute::<&[u8; 76],
                                                                        &[libc::c_char; 76]>(b"void luaO_arith(lua_State *, int, const TValue *, const TValue *, TValue *)\x00")).as_ptr());
-                };
-                n2 = (*p2).value_.n;
-                1i32
-            } else {
-                luaV_tonumber_(p2, &mut n2)
-            } {
+                    };
+                    n2 = (*p2).value_.n;
+                    1i32
+                } else {
+                    luaV_tonumber_(p2, &mut n2)
+                } {
                 let mut io_0: *mut TValue = res;
                 (*io_0).value_.n = numarith(L, op, n1, n2);
                 (*io_0).tt_ = 3i32 | 0i32 << 4i32;
@@ -1190,10 +1178,11 @@ pub unsafe extern "C" fn luaO_arith(
                 (*io_1).value_.i = intarith(L, op, (*p1).value_.i, (*p2).value_.i);
                 (*io_1).tt_ = 3i32 | 1i32 << 4i32;
                 return;
-            } else if 0 != if (*p1).tt_ == 3i32 | 0i32 << 4i32 {
-                if (*p1).tt_ == 3i32 | 0i32 << 4i32 {
-                } else {
-                    __assert_fail(b"((((p1))->tt_) == ((3 | (0 << 4))))\x00"
+            } else if 0
+                != if (*p1).tt_ == 3i32 | 0i32 << 4i32 {
+                    if (*p1).tt_ == 3i32 | 0i32 << 4i32 {
+                    } else {
+                        __assert_fail(b"((((p1))->tt_) == ((3 | (0 << 4))))\x00"
                                                     as *const u8 as
                                                     *const libc::c_char,
                                                 b"lobject.c\x00" as *const u8
@@ -1201,15 +1190,16 @@ pub unsafe extern "C" fn luaO_arith(
                                                 151i32 as libc::c_uint,
                                                 (*::std::mem::transmute::<&[u8; 76],
                                                                           &[libc::c_char; 76]>(b"void luaO_arith(lua_State *, int, const TValue *, const TValue *, TValue *)\x00")).as_ptr());
-                };
-                n1_0 = (*p1).value_.n;
-                1i32
-            } else {
-                luaV_tonumber_(p1, &mut n1_0)
-            } && 0 != if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
-                if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
+                    };
+                    n1_0 = (*p1).value_.n;
+                    1i32
                 } else {
-                    __assert_fail(b"((((p2))->tt_) == ((3 | (0 << 4))))\x00"
+                    luaV_tonumber_(p1, &mut n1_0)
+                }
+                && 0 != if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
+                    if (*p2).tt_ == 3i32 | 0i32 << 4i32 {
+                    } else {
+                        __assert_fail(b"((((p2))->tt_) == ((3 | (0 << 4))))\x00"
                                                         as *const u8 as
                                                         *const libc::c_char,
                                                     b"lobject.c\x00" as
@@ -1218,12 +1208,12 @@ pub unsafe extern "C" fn luaO_arith(
                                                     151i32 as libc::c_uint,
                                                     (*::std::mem::transmute::<&[u8; 76],
                                                                               &[libc::c_char; 76]>(b"void luaO_arith(lua_State *, int, const TValue *, const TValue *, TValue *)\x00")).as_ptr());
-                };
-                n2_0 = (*p2).value_.n;
-                1i32
-            } else {
-                luaV_tonumber_(p2, &mut n2_0)
-            } {
+                    };
+                    n2_0 = (*p2).value_.n;
+                    1i32
+                } else {
+                    luaV_tonumber_(p2, &mut n2_0)
+                } {
                 let mut io_2: *mut TValue = res;
                 (*io_2).value_.n = numarith(L, op, n1_0, n2_0);
                 (*io_2).tt_ = 3i32 | 0i32 << 4i32;
@@ -1425,8 +1415,9 @@ unsafe extern "C" fn l_str2dloc(
         /* nothing recognized? */
         return 0 as *const libc::c_char;
     } else {
-        while 0 != luai_ctype_[(*endptr as libc::c_uchar as libc::c_int + 1i32) as usize]
-            as libc::c_int & 1i32 << 3i32
+        while 0
+            != luai_ctype_[(*endptr as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
+                & 1i32 << 3i32
         {
             /* skip trailing spaces */
             endptr = endptr.offset(1isize)
@@ -1446,8 +1437,9 @@ unsafe extern "C" fn l_str2int(
     let mut a: lua_Unsigned = 0i32 as lua_Unsigned;
     let mut empty: libc::c_int = 1i32;
     let mut neg: libc::c_int = 0;
-    while 0 != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
-        & 1i32 << 3i32
+    while 0
+        != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
+            & 1i32 << 3i32
     {
         /* skip initial spaces */
         s = s.offset(1isize)
@@ -1460,8 +1452,9 @@ unsafe extern "C" fn l_str2int(
         /* hex? */
         /* skip '0x' */
         s = s.offset(2isize);
-        while 0 != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
-            & 1i32 << 4i32
+        while 0
+            != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
+                & 1i32 << 4i32
         {
             a = a
                 .wrapping_mul(16i32 as libc::c_ulonglong)
@@ -1470,15 +1463,16 @@ unsafe extern "C" fn l_str2int(
             s = s.offset(1isize)
         }
     } else {
-        while 0 != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
-            & 1i32 << 1i32
+        while 0
+            != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
+                & 1i32 << 1i32
         {
             let mut d: libc::c_int = *s as libc::c_int - '0' as i32;
             /* overflow? */
             if a >= (9223372036854775807i64 / 10i32 as libc::c_longlong) as lua_Unsigned
                 && (a > (9223372036854775807i64 / 10i32 as libc::c_longlong) as lua_Unsigned
-                    || d
-                        > (9223372036854775807i64 % 10i32 as libc::c_longlong) as libc::c_int + neg)
+                    || d > (9223372036854775807i64 % 10i32 as libc::c_longlong) as libc::c_int
+                        + neg)
             {
                 /* do not accept it (as integer) */
                 return 0 as *const libc::c_char;
@@ -1491,8 +1485,9 @@ unsafe extern "C" fn l_str2int(
             }
         }
     }
-    while 0 != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
-        & 1i32 << 3i32
+    while 0
+        != luai_ctype_[(*s as libc::c_uchar as libc::c_int + 1i32) as usize] as libc::c_int
+            & 1i32 << 3i32
     {
         /* skip trailing spaces */
         s = s.offset(1isize)
@@ -1592,7 +1587,8 @@ pub unsafe extern "C" fn luaO_tostring(mut L: *mut lua_State_0, mut obj: StkId) 
         if buff[strspn(
             buff.as_mut_ptr(),
             b"-0123456789\x00" as *const u8 as *const libc::c_char,
-        ) as usize] as libc::c_int == '\u{0}' as i32
+        ) as usize] as libc::c_int
+            == '\u{0}' as i32
         {
             /* looks like an int? */
             let fresh1 = len;
@@ -1631,21 +1627,22 @@ pub unsafe extern "C" fn luaO_tostring(mut L: *mut lua_State_0, mut obj: StkId) 
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lobject.c\x00" as *const u8 as *const libc::c_char,
-                    387i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 39], &[libc::c_char; 39]>(
-                        b"void luaO_tostring(lua_State *, StkId)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lobject.c\x00" as *const u8 as *const libc::c_char,
+                        387i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 39], &[libc::c_char; 39]>(
+                            b"void luaO_tostring(lua_State *, StkId)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {
@@ -1833,21 +1830,22 @@ pub unsafe extern "C" fn pushstr(
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"lobject.c\x00" as *const u8 as *const libc::c_char,
-                    392i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
-                        b"void pushstr(lua_State *, const char *, size_t)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"lobject.c\x00" as *const u8 as *const libc::c_char,
+                        392i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
+                            b"void pushstr(lua_State *, const char *, size_t)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {

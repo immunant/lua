@@ -1,7 +1,9 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject, TString};
-use ldebug::{lua_Debug};
-use lfunc::{UpVal};
+use ldebug::lua_Debug;
+use lfunc::UpVal;
+use lobject::{
+    lua_TValue, CClosure, Closure, GCObject, LClosure, Proto, TString, TValue, Udata, Value,
+};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
@@ -23,16 +25,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -142,7 +144,7 @@ pub struct Mbuffer_0 {
 pub type ptrdiff_t = libc::c_long;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -552,59 +554,6 @@ pub struct Labellist_0 {
     pub size: libc::c_int,
 }
 /*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Proto {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub numparams: lu_byte,
-    pub is_vararg: lu_byte,
-    pub maxstacksize: lu_byte,
-    pub sizeupvalues: libc::c_int,
-    pub sizek: libc::c_int,
-    pub sizecode: libc::c_int,
-    pub sizelineinfo: libc::c_int,
-    pub sizep: libc::c_int,
-    pub sizelocvars: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
-    pub k: *mut TValue,
-    pub code: *mut Instruction,
-    pub p: *mut *mut Proto,
-    pub lineinfo: *mut libc::c_int,
-    pub locvars: *mut LocVar,
-    pub upvalues: *mut Upvaldesc,
-    pub cache: *mut LClosure,
-    pub source: *mut TString,
-    pub gclist: *mut GCObject,
-}
-/* last-created closure with this prototype */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub p: *mut Proto,
-    pub upvals: [*mut UpVal; 0],
-}
-/*
 **  Get the address of memory block inside 'Udata'.
 ** (Access to 'ttuv_' ensures that value is really a 'Udata'.)
 */
@@ -631,39 +580,11 @@ pub struct LocVar_0 {
     pub startpc: libc::c_int,
     pub endpc: libc::c_int,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Closure {
-    c: CClosure,
-    l: LClosure_0,
-}
 pub type LClosure_0 = LClosure;
 /*
 ** Closures
 */
-pub type CClosure = CClosure_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CClosure_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub f: lua_CFunction,
-    pub upvalue: [TValue; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Udata {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub ttuv_: lu_byte,
-    pub metatable: *mut Table,
-    pub len: size_t,
-    pub user_: Value_0,
-}
+pub type CClosure_0 = CClosure;
 /*
 ** $Id: ldo.h,v 2.28 2015/11/23 11:29:43 roberto Exp roberto $
 ** Stack and Call structure of Lua
@@ -877,10 +798,9 @@ pub unsafe extern "C" fn lua_yieldk(
             as libc::c_long;
         if 0 != (*ci).callstatus as libc::c_int & 1i32 << 1i32 {
             /* inside a hook? */
-            if k.is_none()
-                && !(b"hooks cannot continue after yielding\x00" as *const u8
-                    as *const libc::c_char)
-                    .is_null()
+            if k.is_none() && !(b"hooks cannot continue after yielding\x00" as *const u8
+                as *const libc::c_char)
+                .is_null()
             {
             } else {
                 __assert_fail(
@@ -965,21 +885,25 @@ pub unsafe extern "C" fn luaD_throw(mut L: *mut lua_State_0, mut errcode: libc::
                         )).as_ptr(),
                     );
                 };
-                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"ldo.c\x00" as *const u8 as *const libc::c_char,
-                            120i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 34], &[libc::c_char; 34]>(
-                                b"void luaD_throw(lua_State *, int)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io1)->tt_) & (1 << 6))\x00" as *const u8
+                                    as *const libc::c_char,
+                                b"ldo.c\x00" as *const u8 as *const libc::c_char,
+                                120i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 34], &[libc::c_char; 34]>(
+                                    b"void luaD_throw(lua_State *, int)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io1).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {
@@ -1064,21 +988,24 @@ unsafe extern "C" fn seterrorobj(
                         )).as_ptr(),
                     );
                 };
-                (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"ldo.c\x00" as *const u8 as *const libc::c_char,
-                            95i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
-                                b"void seterrorobj(lua_State *, int, StkId)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                                b"ldo.c\x00" as *const u8 as *const libc::c_char,
+                                95i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
+                                    b"void seterrorobj(lua_State *, int, StkId)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {
@@ -1177,21 +1104,25 @@ unsafe extern "C" fn seterrorobj(
                         )).as_ptr(),
                     );
                 };
-                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"ldo.c\x00" as *const u8 as *const libc::c_char,
-                            103i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
-                                b"void seterrorobj(lua_State *, int, StkId)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io1)->tt_) & (1 << 6))\x00" as *const u8
+                                    as *const libc::c_char,
+                                b"ldo.c\x00" as *const u8 as *const libc::c_char,
+                                103i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
+                                    b"void seterrorobj(lua_State *, int, StkId)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io1).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {
@@ -1533,10 +1464,11 @@ unsafe extern "C" fn moveresults(
             }
             let mut io1: *mut TValue = res;
             *io1 = *firstResult;
-            if 0 == (*io1).tt_ & 1i32 << 6i32 || {
-                if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                } else {
-                    __assert_fail(
+            if 0 == (*io1).tt_ & 1i32 << 6i32
+                || {
+                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                    } else {
+                        __assert_fail(
                         b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
                         b"ldo.c\x00" as *const u8 as *const libc::c_char,
                         342i32 as libc::c_uint,
@@ -1544,11 +1476,13 @@ unsafe extern "C" fn moveresults(
                             b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00",
                         )).as_ptr(),
                     );
-                };
-                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                    };
+                    (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                        && (L.is_null()
+                            || {
+                                if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                                } else {
+                                    __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                           as *const u8 as
                                                           *const libc::c_char,
                                                       b"ldo.c\x00" as
@@ -1557,11 +1491,13 @@ unsafe extern "C" fn moveresults(
                                                       342i32 as libc::c_uint,
                                                       (*::std::mem::transmute::<&[u8; 62],
                                                                                 &[libc::c_char; 62]>(b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00")).as_ptr());
-                    };
-                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
-            } {
+                                };
+                                0 != ((*(*io1).value_.gc).marked as libc::c_int
+                                    ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                    & ((*(*L).l_G).currentwhite as libc::c_int
+                                        ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            })
+                } {
             } else {
                 if 0 != 0i32 {
                 } else {
@@ -1584,10 +1520,11 @@ unsafe extern "C" fn moveresults(
             while i < nres {
                 let mut io1_0: *mut TValue = res.offset(i as isize);
                 *io1_0 = *firstResult.offset(i as isize);
-                if 0 == (*io1_0).tt_ & 1i32 << 6i32 || {
-                    if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                if 0 == (*io1_0).tt_ & 1i32 << 6i32
+                    || {
+                        if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                  as *const u8 as
                                                  *const libc::c_char,
                                              b"ldo.c\x00" as *const u8 as
@@ -1595,12 +1532,13 @@ unsafe extern "C" fn moveresults(
                                              348i32 as libc::c_uint,
                                              (*::std::mem::transmute::<&[u8; 62],
                                                                        &[libc::c_char; 62]>(b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00")).as_ptr());
-                    };
-                    (*io1_0).tt_ & 0x3fi32 == (*(*io1_0).value_.gc).tt as libc::c_int
-                        && (L.is_null() || {
-                            if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
-                            } else {
-                                __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                        };
+                        (*io1_0).tt_ & 0x3fi32 == (*(*io1_0).value_.gc).tt as libc::c_int
+                            && (L.is_null()
+                                || {
+                                    if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
+                                    } else {
+                                        __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                               as *const u8 as
                                                               *const libc::c_char,
                                                           b"ldo.c\x00" as
@@ -1610,13 +1548,13 @@ unsafe extern "C" fn moveresults(
                                                               libc::c_uint,
                                                           (*::std::mem::transmute::<&[u8; 62],
                                                                                     &[libc::c_char; 62]>(b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00")).as_ptr());
-                            };
-                            0 != ((*(*io1_0).value_.gc).marked as libc::c_int
-                                ^ (1i32 << 0i32 | 1i32 << 1i32))
-                                & ((*(*L).l_G).currentwhite as libc::c_int
-                                    ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        })
-                } {
+                                    };
+                                    0 != ((*(*io1_0).value_.gc).marked as libc::c_int
+                                        ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                        & ((*(*L).l_G).currentwhite as libc::c_int
+                                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                })
+                    } {
                 } else {
                     if 0 != 0i32 {
                     } else {
@@ -1644,10 +1582,11 @@ unsafe extern "C" fn moveresults(
                 while i_0 < wanted {
                     let mut io1_1: *mut TValue = res.offset(i_0 as isize);
                     *io1_1 = *firstResult.offset(i_0 as isize);
-                    if 0 == (*io1_1).tt_ & 1i32 << 6i32 || {
-                        if 0 != (*io1_1).tt_ & 1i32 << 6i32 {
-                        } else {
-                            __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                    if 0 == (*io1_1).tt_ & 1i32 << 6i32
+                        || {
+                            if 0 != (*io1_1).tt_ & 1i32 << 6i32 {
+                            } else {
+                                __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                      as *const u8 as
                                                      *const libc::c_char,
                                                  b"ldo.c\x00" as *const u8 as
@@ -1655,12 +1594,13 @@ unsafe extern "C" fn moveresults(
                                                  356i32 as libc::c_uint,
                                                  (*::std::mem::transmute::<&[u8; 62],
                                                                            &[libc::c_char; 62]>(b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00")).as_ptr());
-                        };
-                        (*io1_1).tt_ & 0x3fi32 == (*(*io1_1).value_.gc).tt as libc::c_int
-                            && (L.is_null() || {
-                                if 0 != (*io1_1).tt_ & 1i32 << 6i32 {
-                                } else {
-                                    __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                            };
+                            (*io1_1).tt_ & 0x3fi32 == (*(*io1_1).value_.gc).tt as libc::c_int
+                                && (L.is_null()
+                                    || {
+                                        if 0 != (*io1_1).tt_ & 1i32 << 6i32 {
+                                        } else {
+                                            __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                                   as *const u8
                                                                   as
                                                                   *const libc::c_char,
@@ -1671,13 +1611,13 @@ unsafe extern "C" fn moveresults(
                                                                   libc::c_uint,
                                                               (*::std::mem::transmute::<&[u8; 62],
                                                                                         &[libc::c_char; 62]>(b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00")).as_ptr());
-                                };
-                                0 != ((*(*io1_1).value_.gc).marked as libc::c_int
-                                    ^ (1i32 << 0i32 | 1i32 << 1i32))
-                                    & ((*(*L).l_G).currentwhite as libc::c_int
-                                        ^ (1i32 << 0i32 | 1i32 << 1i32))
-                            })
-                    } {
+                                        };
+                                        0 != ((*(*io1_1).value_.gc).marked as libc::c_int
+                                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                    })
+                        } {
                     } else {
                         if 0 != 0i32 {
                         } else {
@@ -1699,10 +1639,11 @@ unsafe extern "C" fn moveresults(
                 while i_0 < nres {
                     let mut io1_2: *mut TValue = res.offset(i_0 as isize);
                     *io1_2 = *firstResult.offset(i_0 as isize);
-                    if 0 == (*io1_2).tt_ & 1i32 << 6i32 || {
-                        if 0 != (*io1_2).tt_ & 1i32 << 6i32 {
-                        } else {
-                            __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                    if 0 == (*io1_2).tt_ & 1i32 << 6i32
+                        || {
+                            if 0 != (*io1_2).tt_ & 1i32 << 6i32 {
+                            } else {
+                                __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                      as *const u8 as
                                                      *const libc::c_char,
                                                  b"ldo.c\x00" as *const u8 as
@@ -1710,12 +1651,13 @@ unsafe extern "C" fn moveresults(
                                                  360i32 as libc::c_uint,
                                                  (*::std::mem::transmute::<&[u8; 62],
                                                                            &[libc::c_char; 62]>(b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00")).as_ptr());
-                        };
-                        (*io1_2).tt_ & 0x3fi32 == (*(*io1_2).value_.gc).tt as libc::c_int
-                            && (L.is_null() || {
-                                if 0 != (*io1_2).tt_ & 1i32 << 6i32 {
-                                } else {
-                                    __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
+                            };
+                            (*io1_2).tt_ & 0x3fi32 == (*(*io1_2).value_.gc).tt as libc::c_int
+                                && (L.is_null()
+                                    || {
+                                        if 0 != (*io1_2).tt_ & 1i32 << 6i32 {
+                                        } else {
+                                            __assert_fail(b"(((io1)->tt_) & (1 << 6))\x00"
                                                                   as *const u8
                                                                   as
                                                                   *const libc::c_char,
@@ -1726,13 +1668,13 @@ unsafe extern "C" fn moveresults(
                                                                   libc::c_uint,
                                                               (*::std::mem::transmute::<&[u8; 62],
                                                                                         &[libc::c_char; 62]>(b"int moveresults(lua_State *, const TValue *, StkId, int, int)\x00")).as_ptr());
-                                };
-                                0 != ((*(*io1_2).value_.gc).marked as libc::c_int
-                                    ^ (1i32 << 0i32 | 1i32 << 1i32))
-                                    & ((*(*L).l_G).currentwhite as libc::c_int
-                                        ^ (1i32 << 0i32 | 1i32 << 1i32))
-                            })
-                    } {
+                                        };
+                                        0 != ((*(*io1_2).value_.gc).marked as libc::c_int
+                                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                                    })
+                        } {
                     } else {
                         if 0 != 0i32 {
                         } else {
@@ -2478,21 +2420,25 @@ unsafe extern "C" fn tryfuncTM(mut L: *mut lua_State_0, mut func: StkId) -> () {
                         )).as_ptr(),
                     );
                 };
-                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                    } else {
-                        __assert_fail(
-                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                            b"ldo.c\x00" as *const u8 as *const libc::c_char,
-                            323i32 as libc::c_uint,
-                            (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
-                                b"void tryfuncTM(lua_State *, StkId)\x00",
-                            )).as_ptr(),
-                        );
-                    };
-                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                })
+                (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                    && (L.is_null() || {
+                        if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(
+                                b"(((io1)->tt_) & (1 << 6))\x00" as *const u8
+                                    as *const libc::c_char,
+                                b"ldo.c\x00" as *const u8 as *const libc::c_char,
+                                323i32 as libc::c_uint,
+                                (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
+                                    b"void tryfuncTM(lua_State *, StkId)\x00",
+                                )).as_ptr(),
+                            );
+                        };
+                        0 != ((*(*io1).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
             } {
             } else {
                 if 0 != 0i32 {
@@ -2525,21 +2471,23 @@ unsafe extern "C" fn tryfuncTM(mut L: *mut lua_State_0, mut func: StkId) -> () {
                     )).as_ptr(),
                 );
             };
-            (*io1_0).tt_ & 0x3fi32 == (*(*io1_0).value_.gc).tt as libc::c_int && (L.is_null() || {
-                if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
-                } else {
-                    __assert_fail(
-                        b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                        b"ldo.c\x00" as *const u8 as *const libc::c_char,
-                        325i32 as libc::c_uint,
-                        (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
-                            b"void tryfuncTM(lua_State *, StkId)\x00",
-                        )).as_ptr(),
-                    );
-                };
-                0 != ((*(*io1_0).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-            })
+            (*io1_0).tt_ & 0x3fi32 == (*(*io1_0).value_.gc).tt as libc::c_int
+                && (L.is_null() || {
+                    if 0 != (*io1_0).tt_ & 1i32 << 6i32 {
+                    } else {
+                        __assert_fail(
+                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                            b"ldo.c\x00" as *const u8 as *const libc::c_char,
+                            325i32 as libc::c_uint,
+                            (*::std::mem::transmute::<&[u8; 35], &[libc::c_char; 35]>(
+                                b"void tryfuncTM(lua_State *, StkId)\x00",
+                            )).as_ptr(),
+                        );
+                    };
+                    0 != ((*(*io1_0).value_.gc).marked as libc::c_int
+                        ^ (1i32 << 0i32 | 1i32 << 1i32))
+                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                })
         } {
         } else {
             if 0 != 0i32 {
@@ -2606,21 +2554,22 @@ unsafe extern "C" fn adjust_varargs(
                     )).as_ptr(),
                 );
             };
-            (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int && (L.is_null() || {
-                if 0 != (*io1).tt_ & 1i32 << 6i32 {
-                } else {
-                    __assert_fail(
-                        b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                        b"ldo.c\x00" as *const u8 as *const libc::c_char,
-                        302i32 as libc::c_uint,
-                        (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
-                            b"StkId adjust_varargs(lua_State *, Proto *, int)\x00",
-                        )).as_ptr(),
-                    );
-                };
-                0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-            })
+            (*io1).tt_ & 0x3fi32 == (*(*io1).value_.gc).tt as libc::c_int
+                && (L.is_null() || {
+                    if 0 != (*io1).tt_ & 1i32 << 6i32 {
+                    } else {
+                        __assert_fail(
+                            b"(((io1)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                            b"ldo.c\x00" as *const u8 as *const libc::c_char,
+                            302i32 as libc::c_uint,
+                            (*::std::mem::transmute::<&[u8; 48], &[libc::c_char; 48]>(
+                                b"StkId adjust_varargs(lua_State *, Proto *, int)\x00",
+                            )).as_ptr(),
+                        );
+                    };
+                    0 != ((*(*io1).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                })
         } {
         } else {
             if 0 != 0i32 {
@@ -2687,21 +2636,22 @@ unsafe extern "C" fn resume_error(
                 )).as_ptr(),
             );
         };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(
-                    b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                    b"ldo.c\x00" as *const u8 as *const libc::c_char,
-                    606i32 as libc::c_uint,
-                    (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
-                        b"int resume_error(lua_State *, const char *, int)\x00",
-                    )).as_ptr(),
-                );
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
+        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+            && (L.is_null() || {
+                if 0 != (*io).tt_ & 1i32 << 6i32 {
+                } else {
+                    __assert_fail(
+                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                        b"ldo.c\x00" as *const u8 as *const libc::c_char,
+                        606i32 as libc::c_uint,
+                        (*::std::mem::transmute::<&[u8; 49], &[libc::c_char; 49]>(
+                            b"int resume_error(lua_State *, const char *, int)\x00",
+                        )).as_ptr(),
+                    );
+                };
+                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+            })
     } {
     } else {
         if 0 != 0i32 {

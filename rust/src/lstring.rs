@@ -1,13 +1,16 @@
-use lstate::{CallInfo, lua_State, global_State, stringtable};
-use lobject::{TValue, lua_TValue, Value, GCObject, TString};
+use lobject::{
+    lua_TValue, CClosure, Closure, GCObject, LClosure, Node, Proto, TKey, TString, TValue, Table,
+    Udata, Value,
+};
+use lstate::{global_State, lua_State, stringtable, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -43,16 +46,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -74,23 +77,6 @@ extern "C" {
     fn luaC_newobj(L: *mut lua_State_0, tt: libc::c_int, sz: size_t) -> *mut GCObject;
 }
 pub type size_t = libc::c_ulong;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union Closure {
-    c: CClosure_0,
-    l: LClosure_0,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub f: lua_CFunction,
-    pub upvalue: [TValue; 0],
-}
 /*
 ** Description of a local variable for function prototypes
 ** (used for debug information)
@@ -100,7 +86,7 @@ pub type ptrdiff_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -330,39 +316,9 @@ pub type global_State_0 = global_State;
 ** (aligned according to 'UTString'; see next).
 */
 pub type TString_0 = TString;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Table {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub flags: lu_byte,
-    pub lsizenode: lu_byte,
-    pub sizearray: libc::c_uint,
-    pub array: *mut TValue,
-    pub node: *mut Node,
-    pub lastfree: *mut Node,
-    pub metatable: *mut Table,
-    pub gclist: *mut GCObject,
-}
 /* copy a value into a key without messing up field 'next' */
-pub type Node = Node_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Node_0 {
-    pub i_val: TValue,
-    pub i_key: TKey,
-}
-/*
-** Tables
-*/
-pub type TKey = TKey_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union TKey_0 {
-    nk: unnamed_3,
-    tvk: TValue,
-}
+pub type Node_0 = Node;
+pub type TKey_0 = TKey;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct unnamed_3 {
@@ -406,18 +362,6 @@ pub struct Upvaldesc {
     pub instack: lu_byte,
     pub idx: lu_byte,
 }
-/* last-created closure with this prototype */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct LClosure {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub nupvalues: lu_byte,
-    pub gclist: *mut GCObject,
-    pub p: *mut Proto,
-    pub upvals: [*mut UpVal; 0],
-}
 /*
 ** Get the actual string (array of bytes) from a 'TString'.
 ** (Access to 'extra' ensures that value is really a 'TString'.)
@@ -429,21 +373,7 @@ pub struct LClosure {
 ** Header for userdata; memory area follows the end of this structure
 ** (aligned according to 'UUdata'; see next).
 */
-pub type Udata = Udata_0;
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata_0,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
+pub type Udata_0 = Udata;
 /*
 ** Closures
 */
@@ -480,17 +410,6 @@ pub struct Memcontrol {
 /* memory-allocator control variables */
 pub type Memcontrol_0 = Memcontrol;
 pub type LClosure_0 = LClosure;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Udata_0 {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub ttuv_: lu_byte,
-    pub metatable: *mut Table,
-    pub len: size_t,
-    pub user_: Value_0,
-}
 /*
 **  Get the address of memory block inside 'Udata'.
 ** (Access to 'ttuv_' ensures that value is really a 'Udata'.)
@@ -499,33 +418,6 @@ pub struct Udata_0 {
 ** Description of an upvalue for function prototypes
 */
 pub type Upvaldesc_0 = Upvaldesc;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Proto {
-    pub next: *mut GCObject,
-    pub tt: lu_byte,
-    pub marked: lu_byte,
-    pub numparams: lu_byte,
-    pub is_vararg: lu_byte,
-    pub maxstacksize: lu_byte,
-    pub sizeupvalues: libc::c_int,
-    pub sizek: libc::c_int,
-    pub sizecode: libc::c_int,
-    pub sizelineinfo: libc::c_int,
-    pub sizep: libc::c_int,
-    pub sizelocvars: libc::c_int,
-    pub linedefined: libc::c_int,
-    pub lastlinedefined: libc::c_int,
-    pub k: *mut TValue,
-    pub code: *mut Instruction,
-    pub p: *mut *mut Proto,
-    pub lineinfo: *mut libc::c_int,
-    pub locvars: *mut LocVar,
-    pub upvalues: *mut Upvaldesc_0,
-    pub cache: *mut LClosure,
-    pub source: *mut TString,
-    pub gclist: *mut GCObject,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union UUdata {
@@ -824,7 +716,7 @@ pub unsafe extern "C" fn luaS_newlstr(
         } else {
             9223372036854775807i64 as size_t
         }.wrapping_sub(::std::mem::size_of::<TString>() as libc::c_ulong)
-            .wrapping_div(::std::mem::size_of::<libc::c_char>() as libc::c_ulong)
+        .wrapping_div(::std::mem::size_of::<libc::c_char>() as libc::c_ulong)
         {
             luaM_toobig(L);
         } else {
@@ -1104,21 +996,22 @@ pub unsafe extern "C" fn luaS_newudata(mut L: *mut lua_State_0, mut s: size_t) -
                     )).as_ptr(),
                 );
             };
-            (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-                if 0 != (*io).tt_ & 1i32 << 6i32 {
-                } else {
-                    __assert_fail(
-                        b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
-                        b"lstring.c\x00" as *const u8 as *const libc::c_char,
-                        245i32 as libc::c_uint,
-                        (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
-                            b"Udata *luaS_newudata(lua_State *, size_t)\x00",
-                        )).as_ptr(),
-                    );
-                };
-                0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                    & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-            })
+            (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+                && (L.is_null() || {
+                    if 0 != (*io).tt_ & 1i32 << 6i32 {
+                    } else {
+                        __assert_fail(
+                            b"(((io)->tt_) & (1 << 6))\x00" as *const u8 as *const libc::c_char,
+                            b"lstring.c\x00" as *const u8 as *const libc::c_char,
+                            245i32 as libc::c_uint,
+                            (*::std::mem::transmute::<&[u8; 42], &[libc::c_char; 42]>(
+                                b"Udata *luaS_newudata(lua_State *, size_t)\x00",
+                            )).as_ptr(),
+                        );
+                    };
+                    0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                        & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
+                })
         } {
         } else {
             if 0 != 0i32 {

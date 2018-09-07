@@ -1,13 +1,13 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -38,16 +38,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -190,7 +190,7 @@ pub type __time_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -674,12 +674,11 @@ unsafe extern "C" fn sort(mut L: *mut lua_State_0) -> libc::c_int {
     let mut n: lua_Integer = luaL_len(L, 1i32);
     if n > 1i32 as libc::c_longlong {
         /* non-trivial interval? */
-        (n < 2147483647i32 as libc::c_longlong
-            || 0 != luaL_argerror(
-                L,
-                1i32,
-                b"array too big\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int;
+        (n < 2147483647i32 as libc::c_longlong || 0 != luaL_argerror(
+            L,
+            1i32,
+            b"array too big\x00" as *const u8 as *const libc::c_char,
+        )) as libc::c_int;
         /* is there a 2nd argument? */
         if !(lua_type(L, 2i32) <= 0i32) {
             /* must be a function */
@@ -705,16 +704,19 @@ unsafe extern "C" fn checktab(
         /* number of elements to pop */
         let mut n: libc::c_int = 1i32;
         /* must have metatable */
-        if 0 != lua_getmetatable(L, arg) && (0 == what & 1i32 || {
-            n += 1;
-            0 != checkfield(L, b"__index\x00" as *const u8 as *const libc::c_char, n)
-        }) && (0 == what & 2i32 || {
-            n += 1;
-            0 != checkfield(L, b"__newindex\x00" as *const u8 as *const libc::c_char, n)
-        }) && (0 == what & 4i32 || {
-            n += 1;
-            0 != checkfield(L, b"__len\x00" as *const u8 as *const libc::c_char, n)
-        }) {
+        if 0 != lua_getmetatable(L, arg)
+            && (0 == what & 1i32 || {
+                n += 1;
+                0 != checkfield(L, b"__index\x00" as *const u8 as *const libc::c_char, n)
+            })
+            && (0 == what & 2i32 || {
+                n += 1;
+                0 != checkfield(L, b"__newindex\x00" as *const u8 as *const libc::c_char, n)
+            })
+            && (0 == what & 4i32 || {
+                n += 1;
+                0 != checkfield(L, b"__len\x00" as *const u8 as *const libc::c_char, n)
+            }) {
             lua_settop(L, -n - 1i32);
         } else {
             /* pop metatable and tested metamethods */
@@ -1039,20 +1041,18 @@ unsafe extern "C" fn tmove(mut L: *mut lua_State_0) -> libc::c_int {
         /* otherwise, nothing to move */
         let mut n: lua_Integer = 0;
         let mut i: lua_Integer = 0;
-        (f > 0i32 as libc::c_longlong || e < 9223372036854775807i64 + f
-            || 0 != luaL_argerror(
-                L,
-                3i32,
-                b"too many elements to move\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int;
+        (f > 0i32 as libc::c_longlong || e < 9223372036854775807i64 + f || 0 != luaL_argerror(
+            L,
+            3i32,
+            b"too many elements to move\x00" as *const u8 as *const libc::c_char,
+        )) as libc::c_int;
         /* number of elements to move */
         n = e - f + 1i32 as libc::c_longlong;
-        (t <= 9223372036854775807i64 - n + 1i32 as libc::c_longlong
-            || 0 != luaL_argerror(
-                L,
-                4i32,
-                b"destination wrap around\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int;
+        (t <= 9223372036854775807i64 - n + 1i32 as libc::c_longlong || 0 != luaL_argerror(
+            L,
+            4i32,
+            b"destination wrap around\x00" as *const u8 as *const libc::c_char,
+        )) as libc::c_int;
         if t > e || t <= f || tt != 1i32 && 0 == lua_compare(L, 1i32, tt, 0i32) {
             i = 0i32 as lua_Integer;
             while i < n {
@@ -1174,12 +1174,11 @@ unsafe extern "C" fn tinsert(mut L: *mut lua_State_0) -> libc::c_int {
             let mut i: lua_Integer = 0;
             /* 2nd argument is the position */
             pos = luaL_checkinteger(L, 2i32);
-            (1i32 as libc::c_longlong <= pos && pos <= e
-                || 0 != luaL_argerror(
-                    L,
-                    2i32,
-                    b"position out of bounds\x00" as *const u8 as *const libc::c_char,
-                )) as libc::c_int;
+            (1i32 as libc::c_longlong <= pos && pos <= e || 0 != luaL_argerror(
+                L,
+                2i32,
+                b"position out of bounds\x00" as *const u8 as *const libc::c_char,
+            )) as libc::c_int;
             i = e;
             while i > pos {
                 /* move up elements */

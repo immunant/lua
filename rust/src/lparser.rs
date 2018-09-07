@@ -1,13 +1,13 @@
-use lstate::{CallInfo, lua_State, global_State};
-use lobject::{TValue, lua_TValue, Value, GCObject};
+use lobject::{lua_TValue, GCObject, TValue, Value};
+use lstate::{global_State, lua_State, CallInfo, GCUnion};
 
 extern crate libc;
 extern "C" {
     /*
-    ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
-    ** Global State
-    ** See Copyright Notice in lua.h
-    */
+     ** $Id: lstate.h,v 2.132 2016/10/19 12:31:42 roberto Exp roberto $
+     ** Global State
+     ** See Copyright Notice in lua.h
+     */
     /*
 
 ** Some notes about garbage-collected objects: All objects in Lua must
@@ -34,16 +34,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -203,7 +203,7 @@ pub type ptrdiff_t = libc::c_long;
 pub type __sig_atomic_t = libc::c_int;
 pub type intptr_t = libc::c_long;
 /* 16-bit ints */
- /* }{ */
+/* }{ */
 /* } */
 /* chars used as small naturals (so that 'char' is reserved for characters) */
 pub type lu_byte = libc::c_uchar;
@@ -1123,20 +1123,6 @@ pub struct ConsControl {
     pub na: libc::c_int,
     pub tostore: libc::c_int,
 }
-/*
-** Union of all collectable objects (only for conversions)
-*/
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union GCUnion {
-    gc: GCObject,
-    ts: TString_0,
-    u: Udata,
-    cl: Closure,
-    h: Table,
-    p: Proto,
-    th: lua_State,
-}
 #[no_mangle]
 pub unsafe extern "C" fn luaY_parser(
     mut L: *mut lua_State_0,
@@ -1198,21 +1184,24 @@ pub unsafe extern "C" fn luaY_parser(
     };
     (*io).value_.gc = &mut (*(x_ as *mut GCUnion)).gc;
     (*io).tt_ = 6i32 | 0i32 << 4i32 | 1i32 << 6i32;
-    if 0 == (*io).tt_ & 1i32 << 6i32 || {
-        if 0 != (*io).tt_ & 1i32 << 6i32 {
-        } else {
-            __assert_fail(b"(((io)->tt_) & (1 << 6))\x00" as *const u8
+    if 0 == (*io).tt_ & 1i32 << 6i32
+        || {
+            if 0 != (*io).tt_ & 1i32 << 6i32 {
+            } else {
+                __assert_fail(b"(((io)->tt_) & (1 << 6))\x00" as *const u8
                                      as *const libc::c_char,
                                  b"lparser.c\x00" as *const u8 as
                                      *const libc::c_char,
                                  1632i32 as libc::c_uint,
                                  (*::std::mem::transmute::<&[u8; 83],
                                                            &[libc::c_char; 83]>(b"LClosure *luaY_parser(lua_State *, ZIO *, Mbuffer *, Dyndata *, const char *, int)\x00")).as_ptr());
-        };
-        (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(b"(((io)->tt_) & (1 << 6))\x00"
+            };
+            (*io).tt_ & 0x3fi32 == (*(*io).value_.gc).tt as libc::c_int
+                && (L.is_null()
+                    || {
+                        if 0 != (*io).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(b"(((io)->tt_) & (1 << 6))\x00"
                                                   as *const u8 as
                                                   *const libc::c_char,
                                               b"lparser.c\x00" as *const u8 as
@@ -1220,11 +1209,13 @@ pub unsafe extern "C" fn luaY_parser(
                                               1632i32 as libc::c_uint,
                                               (*::std::mem::transmute::<&[u8; 83],
                                                                         &[libc::c_char; 83]>(b"LClosure *luaY_parser(lua_State *, ZIO *, Mbuffer *, Dyndata *, const char *, int)\x00")).as_ptr());
-            };
-            0 != ((*(*io).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
-    } {
+                        };
+                        0 != ((*(*io).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
+        } {
     } else {
         if 0 != 0i32 {
         } else {
@@ -1252,21 +1243,24 @@ pub unsafe extern "C" fn luaY_parser(
     };
     (*io_0).value_.gc = &mut (*(x__0 as *mut GCUnion)).gc;
     (*io_0).tt_ = 5i32 | 1i32 << 6i32;
-    if 0 == (*io_0).tt_ & 1i32 << 6i32 || {
-        if 0 != (*io_0).tt_ & 1i32 << 6i32 {
-        } else {
-            __assert_fail(b"(((io)->tt_) & (1 << 6))\x00" as *const u8
+    if 0 == (*io_0).tt_ & 1i32 << 6i32
+        || {
+            if 0 != (*io_0).tt_ & 1i32 << 6i32 {
+            } else {
+                __assert_fail(b"(((io)->tt_) & (1 << 6))\x00" as *const u8
                                      as *const libc::c_char,
                                  b"lparser.c\x00" as *const u8 as
                                      *const libc::c_char,
                                  1635i32 as libc::c_uint,
                                  (*::std::mem::transmute::<&[u8; 83],
                                                            &[libc::c_char; 83]>(b"LClosure *luaY_parser(lua_State *, ZIO *, Mbuffer *, Dyndata *, const char *, int)\x00")).as_ptr());
-        };
-        (*io_0).tt_ & 0x3fi32 == (*(*io_0).value_.gc).tt as libc::c_int && (L.is_null() || {
-            if 0 != (*io_0).tt_ & 1i32 << 6i32 {
-            } else {
-                __assert_fail(b"(((io)->tt_) & (1 << 6))\x00"
+            };
+            (*io_0).tt_ & 0x3fi32 == (*(*io_0).value_.gc).tt as libc::c_int
+                && (L.is_null()
+                    || {
+                        if 0 != (*io_0).tt_ & 1i32 << 6i32 {
+                        } else {
+                            __assert_fail(b"(((io)->tt_) & (1 << 6))\x00"
                                                   as *const u8 as
                                                   *const libc::c_char,
                                               b"lparser.c\x00" as *const u8 as
@@ -1274,11 +1268,13 @@ pub unsafe extern "C" fn luaY_parser(
                                               1635i32 as libc::c_uint,
                                               (*::std::mem::transmute::<&[u8; 83],
                                                                         &[libc::c_char; 83]>(b"LClosure *luaY_parser(lua_State *, ZIO *, Mbuffer *, Dyndata *, const char *, int)\x00")).as_ptr());
-            };
-            0 != ((*(*io_0).value_.gc).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-                & ((*(*L).l_G).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
-        })
-    } {
+                        };
+                        0 != ((*(*io_0).value_.gc).marked as libc::c_int
+                            ^ (1i32 << 0i32 | 1i32 << 1i32))
+                            & ((*(*L).l_G).currentwhite as libc::c_int
+                                ^ (1i32 << 0i32 | 1i32 << 1i32))
+                    })
+        } {
     } else {
         if 0 != 0i32 {
         } else {
@@ -1705,8 +1701,7 @@ unsafe extern "C" fn getlocvar(mut fs: *mut FuncState_0, mut i: libc::c_int) -> 
     let mut idx: libc::c_int = (*(*(*(*fs).ls).dyd)
         .actvar
         .arr
-        .offset(((*fs).firstlocal + i) as isize))
-        .idx as libc::c_int;
+        .offset(((*fs).firstlocal + i) as isize)).idx as libc::c_int;
     if idx < (*fs).nlocvars as libc::c_int {
     } else {
         __assert_fail(
@@ -2456,14 +2451,16 @@ unsafe extern "C" fn constructor(mut ls: *mut LexState_0, mut t: *mut expdesc_0)
     }
     check_match(ls, '}' as i32, '{' as i32, line);
     lastlistfield(fs, &mut cc);
-    *(*(*fs).f).code.offset(pc as isize) = *(*(*fs).f).code.offset(pc as isize)
-        & !(!((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32 + 9i32)
-        | (luaO_int2fb(cc.na as libc::c_uint) as Instruction) << 0i32 + 6i32 + 8i32 + 9i32
-            & !((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32 + 9i32;
-    *(*(*fs).f).code.offset(pc as isize) = *(*(*fs).f).code.offset(pc as isize)
-        & !(!((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32)
-        | (luaO_int2fb(cc.nh as libc::c_uint) as Instruction) << 0i32 + 6i32 + 8i32
-            & !((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32;
+    *(*(*fs).f).code.offset(pc as isize) =
+        *(*(*fs).f).code.offset(pc as isize)
+            & !(!((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32 + 9i32)
+            | (luaO_int2fb(cc.na as libc::c_uint) as Instruction) << 0i32 + 6i32 + 8i32 + 9i32
+                & !((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32 + 9i32;
+    *(*(*fs).f).code.offset(pc as isize) =
+        *(*(*fs).f).code.offset(pc as isize)
+            & !(!((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32)
+            | (luaO_int2fb(cc.nh as libc::c_uint) as Instruction) << 0i32 + 6i32 + 8i32
+                & !((!(0i32 as Instruction)) << 9i32) << 0i32 + 6i32 + 8i32;
 }
 unsafe extern "C" fn lastlistfield(mut fs: *mut FuncState_0, mut cc: *mut ConsControl) -> () {
     if (*cc).tostore == 0i32 {

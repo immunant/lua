@@ -1,4 +1,4 @@
-use lstate::{CallInfo, lua_State};
+use lstate::{lua_State, CallInfo};
 
 extern crate libc;
 extern "C" {
@@ -6,16 +6,16 @@ extern "C" {
     #[no_mangle]
     static mut l_memcontrol: Memcontrol_0;
     /*
-    ** generic variable for debug tricks
-    */
+     ** generic variable for debug tricks
+     */
     #[no_mangle]
     static mut l_Trick: *mut libc::c_void;
     /*
-    ** generic extra include file
-    */
+     ** generic extra include file
+     */
     /*
-    ** RCS ident string
-    */
+     ** RCS ident string
+     */
     #[no_mangle]
     static lua_ident: [libc::c_char; 0];
     #[no_mangle]
@@ -442,12 +442,11 @@ unsafe extern "C" fn luaB_costatus(mut L: *mut lua_State_0) -> libc::c_int {
 */
 unsafe extern "C" fn getco(mut L: *mut lua_State_0) -> *mut lua_State_0 {
     let mut co: *mut lua_State_0 = lua_tothread(L, 1i32);
-    (!co.is_null()
-        || 0 != luaL_argerror(
-            L,
-            1i32,
-            b"thread expected\x00" as *const u8 as *const libc::c_char,
-        )) as libc::c_int;
+    (!co.is_null() || 0 != luaL_argerror(
+        L,
+        1i32,
+        b"thread expected\x00" as *const u8 as *const libc::c_char,
+    )) as libc::c_int;
     return co;
 }
 unsafe extern "C" fn luaB_corunning(mut L: *mut lua_State_0) -> libc::c_int {
