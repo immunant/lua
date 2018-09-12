@@ -3,6 +3,8 @@ use lobject::{
     lua_TValue, CClosure, Closure, GCObject, LClosure, Proto, TString, TValue, Table, Udata, Value,
 };
 use lstate::{global_State, lua_State, stringtable, CallInfo, GCUnion};
+use std::rc::Rc;
+use std::cell::{Ref, RefCell, RefMut};
 
 extern crate libc;
 extern "C" {
@@ -712,19 +714,19 @@ pub unsafe extern "C" fn lua_absindex(
     return if idx > 0i32 || idx <= -50000i32 - 1000i32 {
         idx
     } else {
-        (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long as libc::c_int + idx
+        (*L).top.wrapping_offset_from((*L).ci.as_ref().unwrap().borrow().func.clone()) as libc::c_long as libc::c_int + idx
     };
 }
 #[no_mangle]
 pub unsafe extern "C" fn lua_gettop(mut L: *mut lua_State_0) -> libc::c_int {
     return (*L)
         .top
-        .wrapping_offset_from((*(*L).ci).func.offset(1isize)) as libc::c_long
+        .wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)) as libc::c_long
         as libc::c_int;
 }
 #[no_mangle]
 pub unsafe extern "C" fn lua_settop(mut L: *mut lua_State_0, mut idx: libc::c_int) -> () {
-    let mut func: StkId = (*(*L).ci).func;
+    let mut func: StkId = ((*L).ci.as_ref().unwrap().borrow_mut()).func;
     let ref mut fresh3 = *(*((L as *mut libc::c_char)
         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
         as *mut libc::c_void as *mut L_EXTRA))
@@ -858,7 +860,7 @@ pub unsafe extern "C" fn lua_pushvalue(mut L: *mut lua_State_0, mut idx: libc::c
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -897,11 +899,11 @@ pub unsafe extern "C" fn lua_pushvalue(mut L: *mut lua_State_0, mut idx: libc::c
 /* test for upvalue */
 /* test for valid but not pseudo index */
 unsafe extern "C" fn index2addr(mut L: *mut lua_State_0, mut idx: libc::c_int) -> *mut TValue {
-    let mut ci: *mut CallInfo_0 = (*L).ci;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
     if idx > 0i32 {
-        let mut o: *mut TValue = (*ci).func.offset(idx as isize);
+        let mut o: *mut TValue = (ci.as_ref().unwrap().borrow_mut()).func.offset(idx as isize);
         if idx as libc::c_long
-            <= (*ci).top.wrapping_offset_from((*ci).func.offset(1isize)) as libc::c_long
+            <= (ci.as_ref().unwrap().borrow_mut()).top.wrapping_offset_from((ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)) as libc::c_long
             && !(b"unacceptable index\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -924,7 +926,7 @@ unsafe extern "C" fn index2addr(mut L: *mut lua_State_0, mut idx: libc::c_int) -
         /* negative index */
         if idx != 0i32
             && -idx as libc::c_long
-                <= (*L).top.wrapping_offset_from((*ci).func.offset(1isize)) as libc::c_long
+                <= (*L).top.wrapping_offset_from((ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)) as libc::c_long
             && !(b"invalid index\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -959,11 +961,11 @@ unsafe extern "C" fn index2addr(mut L: *mut lua_State_0, mut idx: libc::c_int) -
             );
         };
         /* light C function? */
-        if (*(*ci).func).tt_ == 6i32 | 1i32 << 4i32 {
+        if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 1i32 << 4i32 {
             /* it has no upvalues */
             return &luaO_nilobject_ as *const TValue as *mut TValue;
         } else {
-            if (*(*ci).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
+            if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
             } else {
                 __assert_fail(
                     b"((((ci->func))->tt_) == ((((6 | (2 << 4))) | (1 << 6))))\x00" as *const u8
@@ -975,7 +977,7 @@ unsafe extern "C" fn index2addr(mut L: *mut lua_State_0, mut idx: libc::c_int) -
                     )).as_ptr(),
                 );
             };
-            if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
+            if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
             } else {
                 __assert_fail(
                     b"(((ci->func)->value_).gc)->tt == (6 | (2 << 4))\x00" as *const u8
@@ -987,7 +989,7 @@ unsafe extern "C" fn index2addr(mut L: *mut lua_State_0, mut idx: libc::c_int) -
                     )).as_ptr(),
                 );
             };
-            let mut func: *mut CClosure = &mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.c;
+            let mut func: *mut CClosure = &mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.c;
             return if idx <= (*func).nupvalues as libc::c_int {
                 &mut *(*func).upvalue.as_mut_ptr().offset((idx - 1i32) as isize) as *mut TValue
             } else {
@@ -1315,7 +1317,7 @@ pub unsafe extern "C" fn lua_copy(
     if toidx < -50000i32 - 1000i32 {
         if 0 != (*fr).tt_ & 1i32 << 6i32
             && {
-                if (*(*(*L).ci).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
+                if (*((*L).ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
                 } else {
                     __assert_fail(
                         b"((((L->ci->func))->tt_) == ((((6 | (2 << 4))) | (1 << 6))))\x00"
@@ -1327,7 +1329,7 @@ pub unsafe extern "C" fn lua_copy(
                         )).as_ptr(),
                     );
                 };
-                if (*(*(*(*L).ci).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
+                if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
                 } else {
                     __assert_fail(
                         b"(((L->ci->func)->value_).gc)->tt == (6 | (2 << 4))\x00" as *const u8
@@ -1339,7 +1341,7 @@ pub unsafe extern "C" fn lua_copy(
                         )).as_ptr(),
                     );
                 };
-                0 != (*(&mut (*((*(*(*L).ci).func).value_.gc as *mut GCUnion)).cl.c
+                0 != (*(&mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.c
                     as *mut CClosure))
                     .marked as libc::c_int
                     & 1i32 << 2i32
@@ -1358,7 +1360,7 @@ pub unsafe extern "C" fn lua_copy(
                 };
                 0 != (*(*fr).value_.gc).marked as libc::c_int & (1i32 << 0i32 | 1i32 << 1i32)
             } {
-            if (*(*(*L).ci).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
+            if (*((*L).ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
             } else {
                 __assert_fail(
                     b"((((L->ci->func))->tt_) == ((((6 | (2 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1370,7 +1372,7 @@ pub unsafe extern "C" fn lua_copy(
                     )).as_ptr(),
                 );
             };
-            if (*(*(*(*L).ci).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
+            if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
             } else {
                 __assert_fail(
                     b"(((L->ci->func)->value_).gc)->tt == (6 | (2 << 4))\x00" as *const u8
@@ -1382,7 +1384,7 @@ pub unsafe extern "C" fn lua_copy(
                     )).as_ptr(),
                 );
             };
-            if (*(&mut (*((*(*(*L).ci).func).value_.gc as *mut GCUnion)).cl.c as *mut CClosure)).tt
+            if (*(&mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.c as *mut CClosure)).tt
                 as libc::c_int
                 & 0xfi32
                 < 9i32 + 1i32
@@ -1395,7 +1397,7 @@ pub unsafe extern "C" fn lua_copy(
                               (*::std::mem::transmute::<&[u8; 37],
                                                         &[libc::c_char; 37]>(b"void lua_copy(lua_State *, int, int)\x00")).as_ptr());
             };
-            if (*(*(*L).ci).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
+            if (*((*L).ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 2i32 << 4i32 | 1i32 << 6i32 {
             } else {
                 __assert_fail(
                     b"((((L->ci->func))->tt_) == ((((6 | (2 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1407,7 +1409,7 @@ pub unsafe extern "C" fn lua_copy(
                     )).as_ptr(),
                 );
             };
-            if (*(*(*(*L).ci).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
+            if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 2i32 << 4i32 {
             } else {
                 __assert_fail(
                     b"(((L->ci->func)->value_).gc)->tt == (6 | (2 << 4))\x00" as *const u8
@@ -1432,7 +1434,7 @@ pub unsafe extern "C" fn lua_copy(
             };
             luaC_barrier_(
                 L,
-                &mut (*(&mut (*((*(*(*L).ci).func).value_.gc as *mut GCUnion)).cl.c as *mut CClosure
+                &mut (*(&mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.c as *mut CClosure
                     as *mut GCUnion))
                     .gc,
                 (*fr).value_.gc,
@@ -1461,7 +1463,7 @@ pub unsafe extern "C" fn lua_checkstack(
     mut n: libc::c_int,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
-    let mut ci: *mut CallInfo_0 = (*L).ci;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
     let ref mut fresh16 = *(*((L as *mut libc::c_char)
         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
         as *mut libc::c_void as *mut L_EXTRA))
@@ -1508,9 +1510,9 @@ pub unsafe extern "C" fn lua_checkstack(
             ) == 0i32) as libc::c_int
         }
     }
-    if 0 != res && (*ci).top < (*L).top.offset(n as isize) {
+    if 0 != res && (ci.as_ref().unwrap().borrow_mut()).top < (*L).top.offset(n as isize) {
         /* adjust frame top */
-        (*ci).top = (*L).top.offset(n as isize)
+        (ci.as_ref().unwrap().borrow_mut()).top = (*L).top.offset(n as isize)
     }
     let ref mut fresh18 = *(*((L as *mut libc::c_char)
         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
@@ -1562,7 +1564,7 @@ pub unsafe extern "C" fn lua_xmove(
                                                     &[libc::c_char; 46]>(b"void lua_xmove(lua_State *, lua_State *, int)\x00")).as_ptr());
         };
         if (n as libc::c_long)
-            < (*from).top.wrapping_offset_from((*(*from).ci).func) as libc::c_long
+            < (*from).top.wrapping_offset_from(((*from).ci.as_ref().unwrap().borrow()).func) as libc::c_long
             && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char)
                 .is_null()
         {
@@ -1592,7 +1594,7 @@ pub unsafe extern "C" fn lua_xmove(
                 )).as_ptr(),
             );
         };
-        if (*(*to).ci).top.wrapping_offset_from((*to).top) as libc::c_long >= n as libc::c_long
+        if ((*to).ci.as_ref().unwrap().borrow_mut()).top.wrapping_offset_from((*to).top) as libc::c_long >= n as libc::c_long
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -2468,7 +2470,7 @@ pub unsafe extern "C" fn lua_arith(mut L: *mut lua_State_0, mut op: libc::c_int)
                                                 &[libc::c_char; 33]>(b"void lua_arith(lua_State *, int)\x00")).as_ptr());
     };
     if op != 12i32 && op != 13i32 {
-        if (2i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+        if (2i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
             && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char)
                 .is_null()
         {
@@ -2486,7 +2488,7 @@ pub unsafe extern "C" fn lua_arith(mut L: *mut lua_State_0, mut op: libc::c_int)
     } else {
         /* all other operations expect two operands */
         /* for unary operations, add fake 2nd operand */
-        if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+        if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
             && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char)
                 .is_null()
         {
@@ -2546,7 +2548,7 @@ pub unsafe extern "C" fn lua_arith(mut L: *mut lua_State_0, mut op: libc::c_int)
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -2693,7 +2695,7 @@ pub unsafe extern "C" fn lua_pushnil(mut L: *mut lua_State_0) -> () {
     };
     (*(*L).top).tt_ = 0i32;
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -2742,7 +2744,7 @@ pub unsafe extern "C" fn lua_pushnumber(mut L: *mut lua_State_0, mut n: lua_Numb
     (*io).value_.n = n;
     (*io).tt_ = 3i32 | 0i32 << 4i32;
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -2791,7 +2793,7 @@ pub unsafe extern "C" fn lua_pushinteger(mut L: *mut lua_State_0, mut n: lua_Int
     (*io).value_.i = n;
     (*io).tt_ = 3i32 | 1i32 << 4i32;
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -2904,7 +2906,7 @@ pub unsafe extern "C" fn lua_pushlstring(
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -3046,7 +3048,7 @@ pub unsafe extern "C" fn lua_pushstring(
             .offset(::std::mem::size_of::<UTString>() as libc::c_ulong as isize)
     }
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -3147,7 +3149,7 @@ pub unsafe extern "C" fn lua_pushcclosure(
         (*io).tt_ = 6i32 | 1i32 << 4i32
     } else {
         let mut cl: *mut CClosure = 0 as *mut CClosure;
-        if (n as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+        if (n as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
             && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char)
                 .is_null()
         {
@@ -3295,7 +3297,7 @@ pub unsafe extern "C" fn lua_pushcclosure(
     }
     /* does not need barrier because closure is white */
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -3348,7 +3350,7 @@ pub unsafe extern "C" fn lua_pushboolean(mut L: *mut lua_State_0, mut b: libc::c
     (*io).tt_ = 1i32;
     /* ensure that true is 1 */
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -3400,7 +3402,7 @@ pub unsafe extern "C" fn lua_pushlightuserdata(
     (*io).value_.p = p;
     (*io).tt_ = 2i32;
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -3503,7 +3505,7 @@ pub unsafe extern "C" fn lua_pushthread(mut L: *mut lua_State_0) -> libc::c_int 
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -3663,7 +3665,7 @@ unsafe extern "C" fn auxgetstr(
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -3736,7 +3738,7 @@ unsafe extern "C" fn auxgetstr(
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -4019,7 +4021,7 @@ pub unsafe extern "C" fn lua_geti(
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -4038,7 +4040,7 @@ pub unsafe extern "C" fn lua_geti(
         (*io).value_.i = n;
         (*io).tt_ = 3i32 | 1i32 << 4i32;
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -4298,7 +4300,7 @@ pub unsafe extern "C" fn lua_rawgeti(
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -4440,7 +4442,7 @@ pub unsafe extern "C" fn lua_rawgetp(
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -4550,7 +4552,7 @@ pub unsafe extern "C" fn lua_createtable(
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -4664,7 +4666,7 @@ pub unsafe extern "C" fn lua_newuserdata(
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -4847,7 +4849,7 @@ pub unsafe extern "C" fn lua_getmetatable(
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -4984,7 +4986,7 @@ pub unsafe extern "C" fn lua_getuservalue(
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -5074,7 +5076,7 @@ unsafe extern "C" fn auxsetstr(
 ) -> () {
     let mut slot: *const TValue = 0 as *const TValue;
     let mut str: *mut TString = luaS_new(L, k);
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -5306,7 +5308,7 @@ unsafe extern "C" fn auxsetstr(
         };
         /* push 'str' (to make it a TValue) */
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -5363,7 +5365,7 @@ pub unsafe extern "C" fn lua_settable(mut L: *mut lua_State_0, mut idx: libc::c_
                       (*::std::mem::transmute::<&[u8; 36],
                                                 &[libc::c_char; 36]>(b"void lua_settable(lua_State *, int)\x00")).as_ptr());
     };
-    if (2i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (2i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -5606,7 +5608,7 @@ pub unsafe extern "C" fn lua_seti(
                       (*::std::mem::transmute::<&[u8; 45],
                                                 &[libc::c_char; 45]>(b"void lua_seti(lua_State *, int, lua_Integer)\x00")).as_ptr());
     };
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -5780,7 +5782,7 @@ pub unsafe extern "C" fn lua_seti(
         (*io).value_.i = n;
         (*io).tt_ = 3i32 | 1i32 << 4i32;
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -5838,7 +5840,7 @@ pub unsafe extern "C" fn lua_rawset(mut L: *mut lua_State_0, mut idx: libc::c_in
                       (*::std::mem::transmute::<&[u8; 34],
                                                 &[libc::c_char; 34]>(b"void lua_rawset(lua_State *, int)\x00")).as_ptr());
     };
-    if (2i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (2i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -6065,7 +6067,7 @@ pub unsafe extern "C" fn lua_rawseti(
                       (*::std::mem::transmute::<&[u8; 48],
                                                 &[libc::c_char; 48]>(b"void lua_rawseti(lua_State *, int, lua_Integer)\x00")).as_ptr());
     };
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -6234,7 +6236,7 @@ pub unsafe extern "C" fn lua_rawsetp(
                       (*::std::mem::transmute::<&[u8; 49],
                                                 &[libc::c_char; 49]>(b"void lua_rawsetp(lua_State *, int, const void *)\x00")).as_ptr());
     };
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -6437,7 +6439,7 @@ pub unsafe extern "C" fn lua_setmetatable(
                       (*::std::mem::transmute::<&[u8; 39],
                                                 &[libc::c_char; 39]>(b"int lua_setmetatable(lua_State *, int)\x00")).as_ptr());
     };
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -6788,7 +6790,7 @@ pub unsafe extern "C" fn lua_setuservalue(mut L: *mut lua_State_0, mut idx: libc
                       (*::std::mem::transmute::<&[u8; 40],
                                                 &[libc::c_char; 40]>(b"void lua_setuservalue(lua_State *, int)\x00")).as_ptr());
     };
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -7004,7 +7006,7 @@ pub unsafe extern "C" fn lua_callk(
                       (*::std::mem::transmute::<&[u8; 67],
                                                 &[libc::c_char; 67]>(b"void lua_callk(lua_State *, int, int, lua_KContext, lua_KFunction)\x00")).as_ptr());
     };
-    if (k.is_none() || 0 == (*(*L).ci).callstatus as libc::c_int & 1i32 << 1i32)
+    if (k.is_none() || 0 == ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32)
         && !(b"cannot use continuations inside hooks\x00" as *const u8 as *const libc::c_char)
             .is_null()
     {
@@ -7017,7 +7019,7 @@ pub unsafe extern "C" fn lua_callk(
                                                 &[libc::c_char; 67]>(b"void lua_callk(lua_State *, int, int, lua_KContext, lua_KFunction)\x00")).as_ptr());
     };
     if ((nargs + 1i32) as libc::c_long)
-        < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+        < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -7047,7 +7049,7 @@ pub unsafe extern "C" fn lua_callk(
         );
     };
     if (nresults == -1i32
-        || (*(*L).ci).top.wrapping_offset_from((*L).top) as libc::c_long
+        || ((*L).ci.as_ref().unwrap().borrow_mut()).top.wrapping_offset_from((*L).top) as libc::c_long
             >= (nresults - nargs) as libc::c_long)
         && !(b"results from function overflow current stack size\x00" as *const u8
             as *const libc::c_char)
@@ -7065,9 +7067,9 @@ pub unsafe extern "C" fn lua_callk(
     if k.is_some() && (*L).nny as libc::c_int == 0i32 {
         /* need to prepare continuation? */
         /* save continuation */
-        (*(*L).ci).u.c.k = k;
+        ((*L).ci.as_ref().unwrap().borrow_mut()).u.c.k = k;
         /* save context */
-        (*(*L).ci).u.c.ctx = ctx;
+        ((*L).ci.as_ref().unwrap().borrow_mut()).u.c.ctx = ctx;
         /* do the call */
         luaD_call(L, func, nresults);
     } else {
@@ -7075,8 +7077,8 @@ pub unsafe extern "C" fn lua_callk(
         /* just do the call */
         luaD_callnoyield(L, func, nresults);
     }
-    if nresults == -1i32 && (*(*L).ci).top < (*L).top {
-        (*(*L).ci).top = (*L).top
+    if nresults == -1i32 && ((*L).ci.as_ref().unwrap().borrow_mut()).top < (*L).top {
+        ((*L).ci.as_ref().unwrap().borrow_mut()).top = (*L).top
     }
     let ref mut fresh124 = *(*((L as *mut libc::c_char)
         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
@@ -7103,7 +7105,7 @@ pub unsafe extern "C" fn lua_pcallk(
     mut k: lua_KFunction,
 ) -> libc::c_int {
     let mut o: StkId = 0 as *mut TValue;
-    let mut ci: *mut CallInfo_0 = 0 as *mut CallInfo_0;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = Some(CallInfo::new());
     let mut c: CallS = CallS {
         func: 0 as *mut TValue,
         nresults: 0,
@@ -7125,7 +7127,7 @@ pub unsafe extern "C" fn lua_pcallk(
                       (*::std::mem::transmute::<&[u8; 72],
                                                 &[libc::c_char; 72]>(b"int lua_pcallk(lua_State *, int, int, int, lua_KContext, lua_KFunction)\x00")).as_ptr());
     };
-    if (k.is_none() || 0 == (*(*L).ci).callstatus as libc::c_int & 1i32 << 1i32)
+    if (k.is_none() || 0 == ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32)
         && !(b"cannot use continuations inside hooks\x00" as *const u8 as *const libc::c_char)
             .is_null()
     {
@@ -7138,7 +7140,7 @@ pub unsafe extern "C" fn lua_pcallk(
                                                 &[libc::c_char; 72]>(b"int lua_pcallk(lua_State *, int, int, int, lua_KContext, lua_KFunction)\x00")).as_ptr());
     };
     if ((nargs + 1i32) as libc::c_long)
-        < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+        < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -7168,7 +7170,7 @@ pub unsafe extern "C" fn lua_pcallk(
         );
     };
     if (nresults == -1i32
-        || (*(*L).ci).top.wrapping_offset_from((*L).top) as libc::c_long
+        || ((*L).ci.as_ref().unwrap().borrow_mut()).top.wrapping_offset_from((*L).top) as libc::c_long
             >= (nresults - nargs) as libc::c_long)
         && !(b"results from function overflow current stack size\x00" as *const u8
             as *const libc::c_char)
@@ -7217,31 +7219,31 @@ pub unsafe extern "C" fn lua_pcallk(
         )
     } else {
         /* prepare continuation (call is already protected by 'resume') */
-        ci = (*L).ci;
+        ci = (*L).ci.as_ref().cloned();
         /* save continuation */
-        (*ci).u.c.k = k;
+        (ci.as_ref().unwrap().borrow_mut()).u.c.k = k;
         /* save context */
-        (*ci).u.c.ctx = ctx;
+        (ci.as_ref().unwrap().borrow_mut()).u.c.ctx = ctx;
         /* save information for error recovery */
-        (*ci).extra = (c.func as *mut libc::c_char)
+        (ci.as_ref().unwrap().borrow_mut()).extra = (c.func as *mut libc::c_char)
             .wrapping_offset_from((*L).stack as *mut libc::c_char)
             as libc::c_long;
-        (*ci).u.c.old_errfunc = (*L).errfunc;
+        (ci.as_ref().unwrap().borrow_mut()).u.c.old_errfunc = (*L).errfunc;
         (*L).errfunc = func;
-        (*ci).callstatus = ((*ci).callstatus as libc::c_int & !(1i32 << 0i32)
+        (ci.as_ref().unwrap().borrow_mut()).callstatus = ((ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & !(1i32 << 0i32)
             | (*L).allowhook as libc::c_int) as libc::c_ushort;
         /* save value of 'allowhook' */
         /* function can do error recovery */
-        (*ci).callstatus = ((*ci).callstatus as libc::c_int | 1i32 << 4i32) as libc::c_ushort;
+        (ci.as_ref().unwrap().borrow_mut()).callstatus = ((ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int | 1i32 << 4i32) as libc::c_ushort;
         /* do the call */
         luaD_call(L, c.func, nresults);
-        (*ci).callstatus = ((*ci).callstatus as libc::c_int & !(1i32 << 4i32)) as libc::c_ushort;
-        (*L).errfunc = (*ci).u.c.old_errfunc;
+        (ci.as_ref().unwrap().borrow_mut()).callstatus = ((ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & !(1i32 << 4i32)) as libc::c_ushort;
+        (*L).errfunc = (ci.as_ref().unwrap().borrow_mut()).u.c.old_errfunc;
         /* if it is here, there were no errors */
         status = 0i32
     }
-    if nresults == -1i32 && (*(*L).ci).top < (*L).top {
-        (*(*L).ci).top = (*L).top
+    if nresults == -1i32 && ((*L).ci.as_ref().unwrap().borrow_mut()).top < (*L).top {
+        ((*L).ci.as_ref().unwrap().borrow_mut()).top = (*L).top
     }
     let ref mut fresh127 = *(*((L as *mut libc::c_char)
         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
@@ -7444,7 +7446,7 @@ pub unsafe extern "C" fn lua_dump(
                       (*::std::mem::transmute::<&[u8; 51],
                                                 &[libc::c_char; 51]>(b"int lua_dump(lua_State *, lua_Writer, void *, int)\x00")).as_ptr());
     };
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -7636,7 +7638,7 @@ pub unsafe extern "C" fn lua_error(mut L: *mut lua_State_0) -> libc::c_int {
                       (*::std::mem::transmute::<&[u8; 27],
                                                 &[libc::c_char; 27]>(b"int lua_error(lua_State *)\x00")).as_ptr());
     };
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -7715,7 +7717,7 @@ pub unsafe extern "C" fn lua_next(mut L: *mut lua_State_0, mut idx: libc::c_int)
     );
     if 0 != more {
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -7765,7 +7767,7 @@ pub unsafe extern "C" fn lua_concat(mut L: *mut lua_State_0, mut n: libc::c_int)
                       (*::std::mem::transmute::<&[u8; 34],
                                                 &[libc::c_char; 34]>(b"void lua_concat(lua_State *, int)\x00")).as_ptr());
     };
-    if (n as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (n as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -7845,7 +7847,7 @@ pub unsafe extern "C" fn lua_concat(mut L: *mut lua_State_0, mut n: libc::c_int)
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -7900,7 +7902,7 @@ pub unsafe extern "C" fn lua_len(mut L: *mut lua_State_0, mut idx: libc::c_int) 
     t = index2addr(L, idx);
     luaV_objlen(L, (*L).top, t as *const TValue);
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -7936,7 +7938,7 @@ pub unsafe extern "C" fn lua_stringtonumber(
     let mut sz: size_t = luaO_str2num(s, (*L).top);
     if sz != 0i32 as libc::c_ulong {
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -8109,7 +8111,7 @@ pub unsafe extern "C" fn lua_getupvalue(
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -8267,7 +8269,7 @@ pub unsafe extern "C" fn lua_setupvalue(
                                                 &[libc::c_char; 50]>(b"const char *lua_setupvalue(lua_State *, int, int)\x00")).as_ptr());
     };
     fi = index2addr(L, funcindex);
-    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from((*(*L).ci).func) as libc::c_long
+    if (1i32 as libc::c_long) < (*L).top.wrapping_offset_from(((*L).ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
         && !(b"not enough elements in the stack\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {

@@ -5,6 +5,9 @@ use lobject::{
 };
 use lstate::{global_State, lua_State, stringtable, CallInfo, GCUnion};
 
+use std::cell::{Ref, RefMut, RefCell};
+use std::rc::Rc;
+
 extern crate libc;
 extern "C" {
     pub type _IO_FILE_plus;
@@ -1960,7 +1963,7 @@ unsafe extern "C" fn checkLclosure(mut g: *mut global_State, mut cl: *mut LClosu
 }
 unsafe extern "C" fn checkstack(mut g: *mut global_State, mut L1: *mut lua_State_0) -> () {
     let mut o: StkId = 0 as *mut TValue;
-    let mut ci: *mut CallInfo_0 = 0 as *mut CallInfo_0;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = Some(CallInfo::new());
     let mut uv: *mut UpVal = 0 as *mut UpVal;
     if 0 != ((*L1).marked as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
         & ((*g).currentwhite as libc::c_int ^ (1i32 << 0i32 | 1i32 << 1i32))
@@ -1989,9 +1992,9 @@ unsafe extern "C" fn checkstack(mut g: *mut global_State, mut L1: *mut lua_State
         uv = (*uv).u.open.next
     }
     /* must be open */
-    ci = (*L1).ci;
-    while !ci.is_null() {
-        if (*ci).top <= (*L1).stack_last {
+    ci = (*L1).ci.as_ref().cloned();
+    while !ci.is_none() {
+        if (ci.as_ref().unwrap().borrow_mut()).top <= (*L1).stack_last {
         } else {
             __assert_fail(
                 b"ci->top <= L1->stack_last\x00" as *const u8 as *const libc::c_char,
@@ -2002,7 +2005,7 @@ unsafe extern "C" fn checkstack(mut g: *mut global_State, mut L1: *mut lua_State
                 )).as_ptr(),
             );
         };
-        if 0 != lua_checkpc(L1, ci) {
+        if 0 != lua_checkpc(L1, ci.as_ref().cloned()) {
         } else {
             __assert_fail(
                 b"lua_checkpc(L1, ci)\x00" as *const u8 as *const libc::c_char,
@@ -2013,7 +2016,8 @@ unsafe extern "C" fn checkstack(mut g: *mut global_State, mut L1: *mut lua_State
                 )).as_ptr(),
             );
         };
-        ci = (*ci).previous
+        let temp = ci.as_ref().unwrap().borrow_mut().previous.as_ref().cloned();
+        ci = temp;
     }
     if !(*L1).stack.is_null() {
         /* complete thread? */
@@ -2079,15 +2083,16 @@ unsafe extern "C" fn checkstack(mut g: *mut global_State, mut L1: *mut lua_State
         };
     };
 }
-unsafe extern "C" fn lua_checkpc(mut L: *mut lua_State_0, mut ci: *mut CallInfo_0) -> libc::c_int {
-    if 0 == (*ci).callstatus as libc::c_int & 1i32 << 1i32 {
+unsafe extern "C" fn lua_checkpc(mut L: *mut lua_State_0, mut ci: Option<Rc<RefCell<CallInfo>>>) -> libc::c_int {
+    if 0 == (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
         return 1i32;
     } else {
         /* if function yielded (inside a hook), real 'func' is in 'extra' field */
-        let mut f: StkId = if (*L).status as libc::c_int != 1i32 || ci != (*L).ci {
-            (*ci).func
+        let mut f: StkId = if (*L).status as libc::c_int != 1i32 || ci.as_ref().unwrap().as_ptr()
+                                                                        != (*L).ci.as_ref().unwrap().as_ptr() {
+            (ci.as_ref().unwrap().borrow_mut()).func
         } else {
-            ((*L).stack as *mut libc::c_char).offset((*ci).extra as isize) as *mut TValue
+            ((*L).stack as *mut libc::c_char).offset((ci.as_ref().unwrap().borrow_mut()).extra as isize) as *mut TValue
         };
         if (*f).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
         } else {
@@ -2113,8 +2118,8 @@ unsafe extern "C" fn lua_checkpc(mut L: *mut lua_State_0, mut ci: *mut CallInfo_
             );
         };
         let mut p: *mut Proto_0 = (*&mut (*((*f).value_.gc as *mut GCUnion)).cl.l).p;
-        return ((*p).code <= (*ci).u.l.savedpc as *mut Instruction
-            && (*ci).u.l.savedpc <= (*p).code.offset((*p).sizecode as isize))
+        return ((*p).code <= (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc as *mut Instruction
+            && (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc <= (*p).code.offset((*p).sizecode as isize))
             as libc::c_int;
     };
 }
@@ -2590,10 +2595,10 @@ unsafe extern "C" fn udataval(mut L: *mut lua_State_0) -> libc::c_int {
     return 1i32;
 }
 unsafe extern "C" fn settrick(mut L: *mut lua_State_0) -> libc::c_int {
-    if (*(*(*L).ci).func.offset(1isize)).tt_ == 0i32 {
+    if (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).tt_ == 0i32 {
         l_Trick = 0 as *mut libc::c_void
     } else {
-        if 0 != (*(*(*L).ci).func.offset(1isize)).tt_ & 1i32 << 6i32 {
+        if 0 != (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).tt_ & 1i32 << 6i32 {
         } else {
             __assert_fail(
                 b"((((L->ci->func + (1)))->tt_) & (1 << 6))\x00" as *const u8
@@ -2605,7 +2610,7 @@ unsafe extern "C" fn settrick(mut L: *mut lua_State_0) -> libc::c_int {
                 )).as_ptr(),
             );
         };
-        l_Trick = (*(*(*L).ci).func.offset(1isize)).value_.gc as *mut libc::c_void
+        l_Trick = (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc as *mut libc::c_void
     }
     return 0i32;
 }
@@ -3443,7 +3448,7 @@ unsafe extern "C" fn table_query(mut L: *mut lua_State_0) -> libc::c_int {
     let mut t: *const Table_0 = 0 as *const Table_0;
     let mut i: libc::c_int = luaL_optinteger(L, 2i32, -1i32 as lua_Integer) as libc::c_int;
     luaL_checktype(L, 1i32, 5i32);
-    if (*(*(*L).ci).func.offset(1isize)).tt_ == 5i32 | 1i32 << 6i32 {
+    if (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).tt_ == 5i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((L->ci->func + (1))))->tt_) == (((5) | (1 << 6))))\x00" as *const u8
@@ -3455,7 +3460,7 @@ unsafe extern "C" fn table_query(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    if (*(*(*(*L).ci).func.offset(1isize)).value_.gc).tt as libc::c_int == 5i32 {
+    if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc).tt as libc::c_int == 5i32 {
     } else {
         __assert_fail(
             b"((((L->ci->func + (1)))->value_).gc)->tt == 5\x00" as *const u8
@@ -3467,7 +3472,7 @@ unsafe extern "C" fn table_query(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    t = &mut (*((*(*(*L).ci).func.offset(1isize)).value_.gc as *mut GCUnion)).h;
+    t = &mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc as *mut GCUnion)).h;
     if i == -1i32 {
         lua_pushinteger(L, (*t).sizearray as lua_Integer);
         lua_pushinteger(
@@ -3570,7 +3575,7 @@ unsafe extern "C" fn pushobject(mut L: *mut lua_State_0, mut o: *const TValue) -
         };
     };
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -3656,7 +3661,7 @@ unsafe extern "C" fn string_query(mut L: *mut lua_State_0) -> libc::c_int {
                 };
             };
             (*L).top = (*L).top.offset(1isize);
-            if (*L).top <= (*(*L).ci).top
+            if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
                 && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
             {
             } else {
@@ -3899,7 +3904,7 @@ unsafe extern "C" fn listlocals(mut L: *mut lua_State_0) -> libc::c_int {
         1i32,
         b"Lua function expected\x00" as *const u8 as *const libc::c_char,
     )) as libc::c_int;
-    if (*(*(*L).ci).func.offset(1isize)).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+    if (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((L->ci->func + (1))))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -3911,7 +3916,7 @@ unsafe extern "C" fn listlocals(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    if (*(*(*(*L).ci).func.offset(1isize)).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"((((L->ci->func + (1)))->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -3923,7 +3928,7 @@ unsafe extern "C" fn listlocals(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    p = (*&mut (*((*(*(*L).ci).func.offset(1isize)).value_.gc as *mut GCUnion))
+    p = (*&mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc as *mut GCUnion))
         .cl
         .l)
         .p;
@@ -3945,7 +3950,7 @@ unsafe extern "C" fn listk(mut L: *mut lua_State_0) -> libc::c_int {
         1i32,
         b"Lua function expected\x00" as *const u8 as *const libc::c_char,
     )) as libc::c_int;
-    if (*(*(*L).ci).func.offset(1isize)).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+    if (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((L->ci->func + (1))))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -3957,7 +3962,7 @@ unsafe extern "C" fn listk(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    if (*(*(*(*L).ci).func.offset(1isize)).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"((((L->ci->func + (1)))->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -3969,7 +3974,7 @@ unsafe extern "C" fn listk(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    p = (*&mut (*((*(*(*L).ci).func.offset(1isize)).value_.gc as *mut GCUnion))
+    p = (*&mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc as *mut GCUnion))
         .cl
         .l)
         .p;
@@ -3990,7 +3995,7 @@ unsafe extern "C" fn listcode(mut L: *mut lua_State_0) -> libc::c_int {
         1i32,
         b"Lua function expected\x00" as *const u8 as *const libc::c_char,
     )) as libc::c_int;
-    if (*(*(*L).ci).func.offset(1isize)).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+    if (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((L->ci->func + (1))))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -4002,7 +4007,7 @@ unsafe extern "C" fn listcode(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    if (*(*(*(*L).ci).func.offset(1isize)).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"((((L->ci->func + (1)))->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -4014,7 +4019,7 @@ unsafe extern "C" fn listcode(mut L: *mut lua_State_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    p = (*&mut (*((*(*(*L).ci).func.offset(1isize)).value_.gc as *mut GCUnion))
+    p = (*&mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc as *mut GCUnion))
         .cl
         .l)
         .p;
@@ -4175,7 +4180,7 @@ unsafe extern "C" fn hash_query(mut L: *mut lua_State_0) -> libc::c_int {
             1i32,
             b"string expected\x00" as *const u8 as *const libc::c_char,
         )) as libc::c_int;
-        if (*(*(*L).ci).func.offset(1isize)).tt_ & 0xfi32 == 4i32 {
+        if (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).tt_ & 0xfi32 == 4i32 {
         } else {
             __assert_fail(
                 b"((((((((L->ci->func + (1))))->tt_)) & 0x0F)) == (4))\x00" as *const u8
@@ -4187,7 +4192,7 @@ unsafe extern "C" fn hash_query(mut L: *mut lua_State_0) -> libc::c_int {
                 )).as_ptr(),
             );
         };
-        if (*(*(*(*L).ci).func.offset(1isize)).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
+        if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc).tt as libc::c_int & 0xfi32 == 4i32 {
         } else {
             __assert_fail(
                 b"((((((L->ci->func + (1)))->value_).gc)->tt) & 0x0F) == 4\x00" as *const u8
@@ -4201,14 +4206,14 @@ unsafe extern "C" fn hash_query(mut L: *mut lua_State_0) -> libc::c_int {
         };
         lua_pushinteger(
             L,
-            (*&mut (*((*(*(*L).ci).func.offset(1isize)).value_.gc as *mut GCUnion)).ts).hash
+            (*&mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)).value_.gc as *mut GCUnion)).ts).hash
                 as lua_Integer,
         );
     } else {
-        o = (*(*L).ci).func.offset(1isize);
+        o = ((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize);
         t = 0 as *mut Table_0;
         luaL_checktype(L, 2i32, 5i32);
-        if (*(*(*L).ci).func.offset(2isize)).tt_ == 5i32 | 1i32 << 6i32 {
+        if (*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(2isize)).tt_ == 5i32 | 1i32 << 6i32 {
         } else {
             __assert_fail(
                 b"(((((L->ci->func + (2))))->tt_) == (((5) | (1 << 6))))\x00" as *const u8
@@ -4220,7 +4225,7 @@ unsafe extern "C" fn hash_query(mut L: *mut lua_State_0) -> libc::c_int {
                 )).as_ptr(),
             );
         };
-        if (*(*(*(*L).ci).func.offset(2isize)).value_.gc).tt as libc::c_int == 5i32 {
+        if (*(*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(2isize)).value_.gc).tt as libc::c_int == 5i32 {
         } else {
             __assert_fail(
                 b"((((L->ci->func + (2)))->value_).gc)->tt == 5\x00" as *const u8
@@ -4232,7 +4237,7 @@ unsafe extern "C" fn hash_query(mut L: *mut lua_State_0) -> libc::c_int {
                 )).as_ptr(),
             );
         };
-        t = &mut (*((*(*(*L).ci).func.offset(2isize)).value_.gc as *mut GCUnion)).h;
+        t = &mut (*((*((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(2isize)).value_.gc as *mut GCUnion)).h;
         lua_pushinteger(
             L,
             luaH_mainposition(t, o).wrapping_offset_from((*t).node) as libc::c_long as lua_Integer,
@@ -4335,7 +4340,7 @@ unsafe extern "C" fn gc_color(mut L: *mut lua_State_0) -> libc::c_int {
     let mut obj: *mut GCObject = 0 as *mut GCObject;
     let mut o: *mut TValue = 0 as *mut TValue;
     luaL_checkany(L, 1i32);
-    o = (*(*L).ci).func.offset(1isize);
+    o = ((*L).ci.as_ref().unwrap().borrow_mut()).func.offset(1isize);
     if 0 == (*o).tt_ & 1i32 << 6i32 {
         lua_pushstring(L, b"no collectable\x00" as *const u8 as *const libc::c_char);
     } else {

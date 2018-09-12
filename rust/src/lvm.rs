@@ -4,6 +4,8 @@ use lobject::{
     Upvaldesc, Value,
 };
 use lstate::{global_State, lua_State, CallInfo, GCUnion};
+use std::cell::{Ref, RefMut, RefCell};
+use std::rc::Rc;
 
 extern crate libc;
 extern "C" {
@@ -128,7 +130,7 @@ extern "C" {
     #[no_mangle]
     fn luaD_poscall(
         L: *mut lua_State_0,
-        ci: *mut CallInfo_0,
+        ci: Option<Rc<RefCell<CallInfo>>>,
         firstResult: StkId,
         nres: libc::c_int,
     ) -> libc::c_int;
@@ -2180,12 +2182,12 @@ pub unsafe extern "C" fn luaV_lessequal(
         } else {
             /* try 'lt': */
             /* mark it is doing 'lt' for 'le' */
-            (*(*L).ci).callstatus =
-                ((*(*L).ci).callstatus as libc::c_int | 1i32 << 7i32) as libc::c_ushort;
+            ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus =
+                (((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int | 1i32 << 7i32) as libc::c_ushort;
             res = luaT_callorderTM(L, r, l, TM_LT);
             /* clear mark */
-            (*(*L).ci).callstatus =
-                ((*(*L).ci).callstatus as libc::c_int ^ 1i32 << 7i32) as libc::c_ushort;
+            ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus =
+                (((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int ^ 1i32 << 7i32) as libc::c_ushort;
             if res < 0i32 {
                 luaG_ordererror(L, l, r);
             } else {
@@ -3046,10 +3048,10 @@ pub unsafe extern "C" fn luaV_finishset(
 }
 #[no_mangle]
 pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
-    let mut ci: *mut CallInfo_0 = (*L).ci;
-    let mut base: StkId = (*ci).u.l.base;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
+    let mut base: StkId = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
     /* interrupted instruction */
-    let mut inst: Instruction = *(*ci).u.l.savedpc.offset(-1isize);
+    let mut inst: Instruction = *ci.as_ref().unwrap().borrow_mut().u.l.savedpc.offset(-1isize);
     let mut op: OpCode = (inst >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode;
     match op as libc::c_uint {
         13 | 14 | 15 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 16 | 17 | 25 | 26 | 28 | 6 | 7 | 12 => {
@@ -3123,7 +3125,7 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                     (*(*L).top.offset(-1isize)).value_.b == 0i32
                 }) as libc::c_int;
             (*L).top = (*L).top.offset(-1isize);
-            if 0 != (*ci).callstatus as libc::c_int & 1i32 << 7i32 {
+            if 0 != ci.as_ref().unwrap().borrow_mut().callstatus as libc::c_int & 1i32 << 7i32 {
                 /* "<=" using "<" instead? */
                 if op as libc::c_uint == OP_LE as libc::c_int as libc::c_uint {
                 } else {
@@ -3137,17 +3139,17 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                     );
                 };
                 /* clear mark */
-                (*ci).callstatus =
-                    ((*ci).callstatus as libc::c_int ^ 1i32 << 7i32) as libc::c_ushort;
+                ci.as_ref().unwrap().borrow_mut().callstatus =
+                    (ci.as_ref().unwrap().borrow_mut().callstatus as libc::c_int ^ 1i32 << 7i32) as libc::c_ushort;
                 /* negate result */
                 res = (0 == res) as libc::c_int
             }
-            if (*(*ci).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
+            if (*(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
                 as libc::c_uint
                 == OP_JMP as libc::c_int as libc::c_uint
             {
             } else {
-                __assert_fail(b"(((OpCode)(((*ci->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_JMP\x00"
+                __assert_fail(b"(((OpCode)(((ci.as_ref().unwrap().borrow_mut()->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_JMP\x00"
                                   as *const u8 as *const libc::c_char,
                               b"lvm.c\x00" as *const u8 as
                                   *const libc::c_char, 679i32 as libc::c_uint,
@@ -3160,7 +3162,7 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                     as libc::c_int
             {
                 /* skip jump instruction */
-                (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize)
+                (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1isize)
             }
         }
         29 => {
@@ -3230,7 +3232,7 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                 /* concat them (may yield again) */
                 luaV_concat(L, total);
             }
-            let mut io1_1: *mut TValue = (*ci).u.l.base.offset(
+            let mut io1_1: *mut TValue = (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(
                 (inst >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32) as libc::c_int
                     as isize,
             );
@@ -3282,15 +3284,15 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
             };
             /* move final result to final position */
             /* restore top */
-            (*L).top = (*ci).top
+            (*L).top = (ci.as_ref().unwrap().borrow_mut()).top
         }
         41 => {
-            if (*(*ci).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
+            if (*(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32) as OpCode
                 as libc::c_uint
                 == OP_TFORLOOP as libc::c_int as libc::c_uint
             {
             } else {
-                __assert_fail(b"(((OpCode)(((*ci->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_TFORLOOP\x00"
+                __assert_fail(b"(((OpCode)(((ci.as_ref().unwrap().borrow_mut()->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_TFORLOOP\x00"
                                   as *const u8 as *const libc::c_char,
                               b"lvm.c\x00" as *const u8 as
                                   *const libc::c_char, 699i32 as libc::c_uint,
@@ -3298,7 +3300,7 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                                                         &[libc::c_char; 32]>(b"void luaV_finishOp(lua_State *)\x00")).as_ptr());
             };
             /* correct top */
-            (*L).top = (*ci).top
+            (*L).top = (ci.as_ref().unwrap().borrow_mut()).top
         }
         36 => {
             /* nresults >= 0? */
@@ -3308,7 +3310,7 @@ pub unsafe extern "C" fn luaV_finishOp(mut L: *mut lua_State_0) -> () {
                 >= 0i32
             {
                 /* adjust results */
-                (*L).top = (*ci).top
+                (*L).top = (ci.as_ref().unwrap().borrow_mut()).top
             }
         }
         37 | 8 | 10 => {}
@@ -3925,15 +3927,15 @@ unsafe extern "C" fn copy2buff(
 pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
     let mut x__0: *mut LClosure_0 = 0 as *mut LClosure_0;
     let mut io_31: *mut TValue = 0 as *mut TValue;
-    let mut ci: *mut CallInfo_0 = (*L).ci;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
     let mut cl: *mut LClosure_0 = 0 as *mut LClosure_0;
     let mut k: *mut TValue = 0 as *mut TValue;
     let mut base: StkId = 0 as *mut TValue;
     /* fresh invocation of 'luaV_execute" */
-    (*ci).callstatus = ((*ci).callstatus as libc::c_int | 1i32 << 3i32) as libc::c_ushort;
+    (ci.as_ref().unwrap().borrow_mut()).callstatus = ((ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int | 1i32 << 3i32) as libc::c_ushort;
     /* reentry point when frame changes (call/return) */
     loop {
-        if ci == (*L).ci {
+        if ci.as_ref().unwrap().as_ptr() == (*L).ci.as_ref().unwrap().as_ptr() {
         } else {
             __assert_fail(
                 b"ci == L->ci\x00" as *const u8 as *const libc::c_char,
@@ -3945,7 +3947,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
             );
         };
         /* local reference to function's closure */
-        if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+        if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
         } else {
             __assert_fail(
                 b"((((ci->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -3957,7 +3959,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 )).as_ptr(),
             );
         };
-        if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+        if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
         } else {
             __assert_fail(
                 b"(((ci->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -3969,27 +3971,27 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 )).as_ptr(),
             );
         };
-        cl = &mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l;
+        cl = &mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l;
         /* local reference to function's constant table */
         k = (*(*cl).p).k;
         /* local copy of function's base */
-        base = (*ci).u.l.base;
+        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
         /* main loop of interpreter */
         's_17: loop {
             let mut i: Instruction = 0;
             let mut ra: StkId = 0 as *mut TValue;
-            let fresh0 = (*ci).u.l.savedpc;
-            (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1);
+            let fresh0 = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
+            (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1);
             i = *fresh0;
             if 0 != (*L).hookmask & (1i32 << 2i32 | 1i32 << 3i32) {
                 luaG_traceexec(L);
-                base = (*ci).u.l.base
+                base = (ci.as_ref().unwrap().borrow_mut()).u.l.base
             }
             ra = base.offset(
                 (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32) as libc::c_int
                     as isize,
             );
-            if base == (*ci).u.l.base {
+            if base == (ci.as_ref().unwrap().borrow_mut()).u.l.base {
             } else {
                 __assert_fail(
                     b"base == ci->u.l.base\x00" as *const u8 as *const libc::c_char,
@@ -4144,12 +4146,12 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                 }
                 2 => {
                     let mut rb_0: *mut TValue = 0 as *mut TValue;
-                    if (*(*ci).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
+                    if (*(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc >> 0i32 & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                         as OpCode as libc::c_uint
                         == OP_EXTRAARG as libc::c_int as libc::c_uint
                     {
                     } else {
-                        __assert_fail(b"(((OpCode)(((*ci->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_EXTRAARG\x00"
+                        __assert_fail(b"(((OpCode)(((ci.as_ref().unwrap().borrow_mut()->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_EXTRAARG\x00"
                                               as *const u8 as
                                               *const libc::c_char,
                                           b"lvm.c\x00" as *const u8 as
@@ -4158,8 +4160,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                           (*::std::mem::transmute::<&[u8; 31],
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
-                    let fresh1 = (*ci).u.l.savedpc;
-                    (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1);
+                    let fresh1 = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
+                    (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1);
                     rb_0 = k.offset(
                         (*fresh1 >> 0i32 + 6i32
                             & !((!(0i32 as Instruction)) << 9i32 + 9i32 + 8i32) << 0i32)
@@ -4228,7 +4230,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     }
                     /* skip next instruction (if C) */
-                    (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize);
+                    (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1isize);
                     continue;
                 }
                 4 => {
@@ -4424,7 +4426,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaV_finishget(L, upval, rc, ra, slot);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -4568,7 +4570,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaV_finishget(L, rb_1 as *const TValue, rc_0, ra, slot_0);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -4825,7 +4827,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     }
                     luaV_finishset(L, upval_0, rb_2, rc_1, slot_1);
-                    base = (*ci).u.l.base;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                     continue;
                 }
                 9 => {
@@ -5136,7 +5138,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     }
                     luaV_finishset(L, ra as *const TValue, rb_3, rc_2, slot_2);
-                    base = (*ci).u.l.base;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                     continue;
                 }
                 11 => {
@@ -5218,8 +5220,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     if (*(*L).l_G).GCdebt > 0i32 as libc::c_long {
                         (*L).top = ra.offset(1isize);
                         luaC_step(L);
-                        (*L).top = (*ci).top;
-                        base = (*ci).u.l.base
+                        (*L).top = (ci.as_ref().unwrap().borrow_mut()).top;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base
                     }
                     let ref mut fresh4 = *(*((L as *mut libc::c_char)
                         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
@@ -5472,7 +5474,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaV_finishget(L, rb_4 as *const TValue, rc_3, ra, aux);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -5619,7 +5621,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_5, rc_4, ra, TM_ADD);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -5766,7 +5768,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_6, rc_5, ra, TM_SUB);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -5913,7 +5915,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_7, rc_6, ra, TM_MUL);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6029,7 +6031,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_8, rc_7, ra, TM_DIV);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6145,7 +6147,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_9, rc_8, ra, TM_BAND);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6261,7 +6263,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_10, rc_9, ra, TM_BOR);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6377,7 +6379,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_11, rc_10, ra, TM_BXOR);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6492,7 +6494,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_12, rc_11, ra, TM_SHL);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6607,7 +6609,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_13, rc_12, ra, TM_SHR);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6758,7 +6760,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_14, rc_13, ra, TM_MOD);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -6905,7 +6907,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_15, rc_14, ra, TM_IDIV);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -7020,7 +7022,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_16, rc_15, ra, TM_POW);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -7091,7 +7093,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_17, rb_17, ra, TM_UNM);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -7143,7 +7145,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         continue;
                     } else {
                         luaT_trybinTM(L, rb_18, rb_18, ra, TM_BNOT);
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         continue;
                     }
                 }
@@ -7215,7 +7217,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                 as libc::c_int as isize,
                         ) as *const TValue,
                     );
-                    base = (*ci).u.l.base;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                     continue;
                 }
                 29 => {
@@ -7229,7 +7231,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     /* mark the end of concat operands */
                     (*L).top = base.offset(c_0 as isize).offset(1isize);
                     luaV_concat(L, c_0 - b_2 + 1i32);
-                    base = (*ci).u.l.base;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                     /* 'luaV_concat' may invoke TMs and move the stack */
                     ra = base.offset(
                         (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
@@ -7291,8 +7293,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             rb_20
                         };
                         luaC_step(L);
-                        (*L).top = (*ci).top;
-                        base = (*ci).u.l.base
+                        (*L).top = (ci.as_ref().unwrap().borrow_mut()).top;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base
                     }
                     let ref mut fresh7 = *(*((L as *mut libc::c_char)
                         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
@@ -7330,7 +7332,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                                                     &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                     };
                     /* restore top */
-                    (*L).top = (*ci).top;
+                    (*L).top = (ci.as_ref().unwrap().borrow_mut()).top;
                     continue;
                 }
                 30 => {
@@ -7338,9 +7340,9 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                         as libc::c_int;
                     if a != 0i32 {
-                        luaF_close(L, (*ci).u.l.base.offset(a as isize).offset(-1isize));
+                        luaF_close(L, (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(a as isize).offset(-1isize));
                     }
-                    (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                    (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                         ((i >> 0i32 + 6i32 + 8i32
                             & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                             as libc::c_int
@@ -7421,16 +7423,16 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         != (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                             as libc::c_int
                     {
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize)
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1isize)
                     } else {
-                        i = *(*ci).u.l.savedpc;
+                        i = *(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
                         let mut a_0: libc::c_int = (i >> 0i32 + 6i32
                             & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                             as libc::c_int;
                         if a_0 != 0i32 {
-                            luaF_close(L, (*ci).u.l.base.offset(a_0 as isize).offset(-1isize));
+                            luaF_close(L, (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(a_0 as isize).offset(-1isize));
                         }
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                             ((i >> 0i32 + 6i32 + 8i32
                                 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                                 as libc::c_int
@@ -7438,7 +7440,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                 + 1i32) as isize,
                         )
                     }
-                    base = (*ci).u.l.base;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                     continue;
                 }
                 32 => {
@@ -7517,16 +7519,16 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     ) != (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                         as libc::c_int
                     {
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize)
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1isize)
                     } else {
-                        i = *(*ci).u.l.savedpc;
+                        i = *(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
                         let mut a_1: libc::c_int = (i >> 0i32 + 6i32
                             & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                             as libc::c_int;
                         if a_1 != 0i32 {
-                            luaF_close(L, (*ci).u.l.base.offset(a_1 as isize).offset(-1isize));
+                            luaF_close(L, (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(a_1 as isize).offset(-1isize));
                         }
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                             ((i >> 0i32 + 6i32 + 8i32
                                 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                                 as libc::c_int
@@ -7534,7 +7536,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                 + 1i32) as isize,
                         )
                     }
-                    base = (*ci).u.l.base;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                     continue;
                 }
                 33 => {
@@ -7613,16 +7615,16 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     ) != (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                         as libc::c_int
                     {
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize)
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1isize)
                     } else {
-                        i = *(*ci).u.l.savedpc;
+                        i = *(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
                         let mut a_2: libc::c_int = (i >> 0i32 + 6i32
                             & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                             as libc::c_int;
                         if a_2 != 0i32 {
-                            luaF_close(L, (*ci).u.l.base.offset(a_2 as isize).offset(-1isize));
+                            luaF_close(L, (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(a_2 as isize).offset(-1isize));
                         }
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                             ((i >> 0i32 + 6i32 + 8i32
                                 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                                 as libc::c_int
@@ -7630,7 +7632,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                 + 1i32) as isize,
                         )
                     }
-                    base = (*ci).u.l.base;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                     continue;
                 }
                 34 => {
@@ -7670,17 +7672,17 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             (*ra).value_.b == 0i32
                         }) as libc::c_int
                     } {
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize);
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1isize);
                         continue;
                     } else {
-                        i = *(*ci).u.l.savedpc;
+                        i = *(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
                         let mut a_3: libc::c_int = (i >> 0i32 + 6i32
                             & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                             as libc::c_int;
                         if a_3 != 0i32 {
-                            luaF_close(L, (*ci).u.l.base.offset(a_3 as isize).offset(-1isize));
+                            luaF_close(L, (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(a_3 as isize).offset(-1isize));
                         }
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                             ((i >> 0i32 + 6i32 + 8i32
                                 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                                 as libc::c_int
@@ -7748,7 +7750,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             (*rb_22).value_.b == 0i32
                         }) as libc::c_int
                     } {
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1isize);
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1isize);
                         continue;
                     } else {
                         let mut io1_9: *mut TValue = ra;
@@ -7802,14 +7804,14 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                 );
                             };
                         };
-                        i = *(*ci).u.l.savedpc;
+                        i = *(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
                         let mut a_4: libc::c_int = (i >> 0i32 + 6i32
                             & !((!(0i32 as Instruction)) << 8i32) << 0i32)
                             as libc::c_int;
                         if a_4 != 0i32 {
-                            luaF_close(L, (*ci).u.l.base.offset(a_4 as isize).offset(-1isize));
+                            luaF_close(L, (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(a_4 as isize).offset(-1isize));
                         }
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                             ((i >> 0i32 + 6i32 + 8i32
                                 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                                 as libc::c_int
@@ -7835,14 +7837,14 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         /* C function? */
                         if nresults >= 0i32 {
                             /* adjust results */
-                            (*L).top = (*ci).top
+                            (*L).top = (ci.as_ref().unwrap().borrow_mut()).top
                         }
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         /* update 'base' */
                         continue;
                     } else {
                         /* Lua function */
-                        ci = (*L).ci;
+                        ci = (*L).ci.as_ref().cloned();
                         /* restart luaV_execute over new Lua function */
                         break;
                     }
@@ -7872,19 +7874,20 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     };
                     if 0 != luaD_precall(L, ra, -1i32) {
                         /* C function? */
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         /* update 'base' */
                         continue;
                     } else {
                         /* tail call: put called frame (n) in place of caller one (o) */
                         /* called frame */
-                        let mut nci: *mut CallInfo_0 = (*L).ci;
+                        let mut nci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.clone();
                         /* caller frame */
-                        let mut oci: *mut CallInfo_0 = (*nci).previous;
+                        let mut oci: Option<Rc<RefCell<CallInfo>>> = (nci.as_ref().unwrap().borrow_mut()).previous
+                                                                        .as_ref().cloned();
                         /* called function */
-                        let mut nfunc: StkId = (*nci).func;
+                        let mut nfunc: StkId = (nci.as_ref().unwrap().borrow_mut()).func;
                         /* caller function */
-                        let mut ofunc: StkId = (*oci).func;
+                        let mut ofunc: StkId = (oci.as_ref().unwrap().borrow_mut()).func;
                         /* last stack slot filled by 'precall' */
                         if (*nfunc).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
                         } else {
@@ -7911,14 +7914,14 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                 )).as_ptr(),
                             );
                         };
-                        let mut lim: StkId = (*nci).u.l.base.offset(
+                        let mut lim: StkId = (nci.as_ref().unwrap().borrow_mut()).u.l.base.offset(
                             (*(*&mut (*((*nfunc).value_.gc as *mut GCUnion)).cl.l).p).numparams
                                 as libc::c_int as isize,
                         );
                         let mut aux_0: libc::c_int = 0;
                         /* close all upvalues from previous call */
                         if (*(*cl).p).sizep > 0i32 {
-                            luaF_close(L, (*oci).u.l.base);
+                            luaF_close(L, (oci.as_ref().unwrap().borrow_mut()).u.l.base);
                         }
                         /* move new frame into old one */
                         aux_0 = 0i32;
@@ -7977,20 +7980,20 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             aux_0 += 1
                         }
                         /* correct base */
-                        (*oci).u.l.base = ofunc
-                            .offset((*nci).u.l.base.wrapping_offset_from(nfunc) as libc::c_long
+                        (oci.as_ref().unwrap().borrow_mut()).u.l.base = ofunc
+                            .offset((nci.as_ref().unwrap().borrow_mut()).u.l.base.wrapping_offset_from(nfunc) as libc::c_long
                                 as isize);
                         /* correct top */
                         (*L).top = ofunc
                             .offset((*L).top.wrapping_offset_from(nfunc) as libc::c_long as isize);
-                        (*oci).top = (*L).top;
-                        (*oci).u.l.savedpc = (*nci).u.l.savedpc;
+                        (oci.as_ref().unwrap().borrow_mut()).top = (*L).top;
+                        (oci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (nci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
                         /* function was tail called */
-                        (*oci).callstatus =
-                            ((*oci).callstatus as libc::c_int | 1i32 << 5i32) as libc::c_ushort;
+                        (oci.as_ref().unwrap().borrow_mut()).callstatus =
+                            ((oci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int | 1i32 << 5i32) as libc::c_ushort;
                         /* remove new frame */
-                        (*L).ci = oci;
-                        ci = (*L).ci;
+                        (*L).ci = oci.as_ref().cloned();
+                        *ci.as_ref().unwrap().borrow_mut() = (*(*L).ci.as_ref().unwrap().borrow_mut()).clone();
                         if (*ofunc).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
                         } else {
                             __assert_fail(
@@ -8017,7 +8020,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             );
                         };
                         if (*L).top
-                            == (*oci).u.l.base.offset(
+                            == (oci.as_ref().unwrap().borrow_mut()).u.l.base.offset(
                                 (*(*(&mut (*((*ofunc).value_.gc as *mut GCUnion)).cl.l
                                     as *mut LClosure_0))
                                     .p)
@@ -8047,7 +8050,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     }
                     b_5 = luaD_poscall(
                         L,
-                        ci,
+                        ci.as_ref().cloned(),
                         ra,
                         if b_5 != 0i32 {
                             b_5 - 1i32
@@ -8056,16 +8059,16 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         },
                     );
                     /* local 'ci' still from callee */
-                    if 0 != (*ci).callstatus as libc::c_int & 1i32 << 3i32 {
+                    if 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 3i32 {
                         /* external invocation: return */
                         return;
                     } else {
                         /* invocation via reentry: continue execution */
-                        ci = (*L).ci;
+                        ci = (*L).ci.as_ref().cloned();
                         if 0 != b_5 {
-                            (*L).top = (*ci).top
+                            (*L).top = (ci.as_ref().unwrap().borrow_mut()).top
                         }
-                        if 0 != (*ci).callstatus as libc::c_int & 1i32 << 1i32 {
+                        if 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
                         } else {
                             __assert_fail(
                                 b"((ci)->callstatus & (1<<1))\x00" as *const u8
@@ -8077,7 +8080,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                 )).as_ptr(),
                             );
                         };
-                        if (*(*ci).u.l.savedpc.offset(-1isize) >> 0i32
+                        if (*(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(-1isize) >> 0i32
                             & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                             as OpCode as libc::c_uint
                             == OP_CALL as libc::c_int as libc::c_uint
@@ -8149,7 +8152,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             continue;
                         }
                         /* jump back */
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                             ((i >> 0i32 + 6i32 + 8i32
                                 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                                 as libc::c_int
@@ -8226,7 +8229,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             continue;
                         }
                         /* jump back */
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                             ((i >> 0i32 + 6i32 + 8i32
                                 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                                 as libc::c_int
@@ -8410,7 +8413,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                             }
                         }
                     }
-                    (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+                    (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                         ((i >> 0i32 + 6i32 + 8i32
                             & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                             as libc::c_int
@@ -8574,11 +8577,11 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         (i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32) << 0i32)
                             as libc::c_int,
                     );
-                    base = (*ci).u.l.base;
-                    (*L).top = (*ci).top;
+                    base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
+                    (*L).top = (ci.as_ref().unwrap().borrow_mut()).top;
                     /* go to next instruction */
-                    let fresh10 = (*ci).u.l.savedpc;
-                    (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1);
+                    let fresh10 = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
+                    (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1);
                     i = *fresh10;
                     ra = base.offset(
                         (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
@@ -8613,13 +8616,13 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         n = (*L).top.wrapping_offset_from(ra) as libc::c_long as libc::c_int - 1i32
                     }
                     if c_1 == 0i32 {
-                        if (*(*ci).u.l.savedpc >> 0i32
+                        if (*(ci.as_ref().unwrap().borrow_mut()).u.l.savedpc >> 0i32
                             & !((!(0i32 as Instruction)) << 6i32) << 0i32)
                             as OpCode as libc::c_uint
                             == OP_EXTRAARG as libc::c_int as libc::c_uint
                         {
                         } else {
-                            __assert_fail(b"(((OpCode)(((*ci->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_EXTRAARG\x00"
+                            __assert_fail(b"(((OpCode)(((ci.as_ref().unwrap().borrow_mut()->u.l.savedpc)>>0) & ((~((~(Instruction)0)<<(6)))<<(0))))) == OP_EXTRAARG\x00"
                                                   as *const u8 as
                                                   *const libc::c_char,
                                               b"lvm.c\x00" as *const u8 as
@@ -8628,8 +8631,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                                               (*::std::mem::transmute::<&[u8; 31],
                                                                         &[libc::c_char; 31]>(b"void luaV_execute(lua_State *)\x00")).as_ptr());
                         };
-                        let fresh11 = (*ci).u.l.savedpc;
-                        (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(1);
+                        let fresh11 = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
+                        (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(1);
                         c_1 = (*fresh11 >> 0i32 + 6i32
                             & !((!(0i32 as Instruction)) << 9i32 + 9i32 + 8i32) << 0i32)
                             as libc::c_int
@@ -8693,7 +8696,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         n -= 1
                     }
                     /* correct top (in case of previous open call) */
-                    (*L).top = (*ci).top;
+                    (*L).top = (ci.as_ref().unwrap().borrow_mut()).top;
                     continue;
                 }
                 44 => {
@@ -8779,8 +8782,8 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                     if (*(*L).l_G).GCdebt > 0i32 as libc::c_long {
                         (*L).top = ra.offset(1isize);
                         luaC_step(L);
-                        (*L).top = (*ci).top;
-                        base = (*ci).u.l.base
+                        (*L).top = (ci.as_ref().unwrap().borrow_mut()).top;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base
                     }
                     let ref mut fresh13 = *(*((L as *mut libc::c_char)
                         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
@@ -8826,7 +8829,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         as libc::c_int
                         - 1i32;
                     let mut j: libc::c_int = 0;
-                    let mut n_0: libc::c_int = base.wrapping_offset_from((*ci).func) as libc::c_long
+                    let mut n_0: libc::c_int = base.wrapping_offset_from((ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long
                         as libc::c_int
                         - (*(*cl).p).numparams as libc::c_int
                         - 1i32;
@@ -8844,7 +8847,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
                         {
                             luaD_growstack(L, n_0);
                         }
-                        base = (*ci).u.l.base;
+                        base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
                         /* previous call may change the stack */
                         ra = base.offset(
                             (i >> 0i32 + 6i32 & !((!(0i32 as Instruction)) << 8i32) << 0i32)
@@ -8987,7 +8990,7 @@ pub unsafe extern "C" fn luaV_execute(mut L: *mut lua_State_0) -> () {
             };
             /* save control variable */
             /* jump back */
-            (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(
+            (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(
                 ((i >> 0i32 + 6i32 + 8i32 & !((!(0i32 as Instruction)) << 9i32 + 9i32) << 0i32)
                     as libc::c_int
                     - ((1i32 << 9i32 + 9i32) - 1i32 >> 1i32)) as isize,

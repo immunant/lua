@@ -983,8 +983,8 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State_0, mut propagateerrors: libc::c_
         /* and (next line) call the finalizer */
         (*L).top = (*L).top.offset(2isize);
         /* will run a finalizer */
-        (*(*L).ci).callstatus =
-            ((*(*L).ci).callstatus as libc::c_int | 1i32 << 8i32) as libc::c_ushort;
+        ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus =
+            (((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int | 1i32 << 8i32) as libc::c_ushort;
         status = luaD_pcall(
             L,
             Some(dothecall),
@@ -994,8 +994,8 @@ unsafe extern "C" fn GCTM(mut L: *mut lua_State_0, mut propagateerrors: libc::c_
             0i32 as ptrdiff_t,
         );
         /* not running a finalizer anymore */
-        (*(*L).ci).callstatus =
-            ((*(*L).ci).callstatus as libc::c_int & !(1i32 << 8i32)) as libc::c_ushort;
+        ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus =
+            (((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & !(1i32 << 8i32)) as libc::c_ushort;
         /* restore hooks */
         (*L).allowhook = oldah;
         /* restore state */

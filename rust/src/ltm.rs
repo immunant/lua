@@ -1015,7 +1015,7 @@ pub unsafe extern "C" fn luaT_callTM(
     }
     /* 3rd argument */
     /* metamethod may yield only when called from Lua code */
-    if 0 != (*(*L).ci).callstatus as libc::c_int & 1i32 << 1i32 {
+    if 0 != ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
         luaD_call(L, func, hasres);
     } else {
         luaD_callnoyield(L, func, hasres);

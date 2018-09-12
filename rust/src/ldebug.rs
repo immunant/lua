@@ -2,6 +2,8 @@ use lobject::{
     lua_TValue, CClosure, Closure, GCObject, LClosure, Proto, TString, TValue, Udata, Value,
 };
 use lstate::{global_State, lua_State, CallInfo, GCUnion};
+use std::rc::Rc;
+use std::cell::{Ref, RefMut, RefCell};
 
 extern crate libc;
 extern "C" {
@@ -131,7 +133,7 @@ pub type lua_Hook = Option<unsafe extern "C" fn(_: *mut lua_State_0, _: *mut lua
 */
 pub type lua_Debug = lua_Debug_0;
 /* activation record */
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct lua_Debug_0 {
     pub event: libc::c_int,
@@ -147,7 +149,7 @@ pub struct lua_Debug_0 {
     pub isvararg: libc::c_char,
     pub istailcall: libc::c_char,
     pub short_src: [libc::c_char; 60],
-    pub i_ci: *mut CallInfo,
+    pub i_ci: Option<Rc<RefCell<CallInfo>>>,
 }
 /* type for continuation-function contexts */
 pub type lua_KContext = intptr_t;
@@ -645,7 +647,7 @@ pub unsafe extern "C" fn lua_getstack(
     mut ar: *mut lua_Debug,
 ) -> libc::c_int {
     let mut status: libc::c_int = 0;
-    let mut ci: *mut CallInfo_0 = 0 as *mut CallInfo_0;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = Some(CallInfo::new());
     if level < 0i32 {
         /* invalid (negative) level */
         return 0i32;
@@ -665,15 +667,16 @@ pub unsafe extern "C" fn lua_getstack(
                           (*::std::mem::transmute::<&[u8; 48],
                                                     &[libc::c_char; 48]>(b"int lua_getstack(lua_State *, int, lua_Debug *)\x00")).as_ptr());
         };
-        ci = (*L).ci;
-        while level > 0i32 && ci != &mut (*L).base_ci as *mut CallInfo_0 {
+        ci = (*L).ci.as_ref().cloned();
+        while level > 0i32 && ci.as_ref().unwrap().as_ptr() != &mut (*L).base_ci as *mut CallInfo {
             level -= 1;
-            ci = (*ci).previous
+            let previous = ci.as_ref().unwrap().borrow_mut().previous.as_ref().cloned();
+            ci = previous
         }
-        if level == 0i32 && ci != &mut (*L).base_ci as *mut CallInfo_0 {
+        if level == 0i32 && ci.as_ref().unwrap().as_ptr() != &mut (*L).base_ci as *mut CallInfo {
             /* level found? */
             status = 1i32;
-            (*ar).i_ci = ci
+            (*ar).i_ci = ci.as_ref().cloned()
         } else {
             status = 0i32
         }
@@ -702,7 +705,7 @@ pub unsafe extern "C" fn lua_getinfo(
 ) -> libc::c_int {
     let mut status: libc::c_int = 0;
     let mut cl: *mut Closure = 0 as *mut Closure;
-    let mut ci: *mut CallInfo_0 = 0 as *mut CallInfo_0;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = Some(CallInfo::new());
     let mut func: StkId = 0 as *mut TValue;
     let ref mut fresh3 = *(*((L as *mut libc::c_char)
         .offset(-(::std::mem::size_of::<L_EXTRA>() as libc::c_ulong as isize))
@@ -721,7 +724,7 @@ pub unsafe extern "C" fn lua_getinfo(
     };
     swapextra(L);
     if *what as libc::c_int == '>' as i32 {
-        ci = 0 as *mut CallInfo_0;
+        ci = Some(CallInfo::new());
         func = (*L).top.offset(-1isize);
         if (*func).tt_ & 0xfi32 == 6i32
             && !(b"function expected\x00" as *const u8 as *const libc::c_char).is_null()
@@ -742,9 +745,10 @@ pub unsafe extern "C" fn lua_getinfo(
         /* pop function */
         (*L).top = (*L).top.offset(-1isize)
     } else {
-        ci = (*ar).i_ci;
-        func = (*ci).func;
-        if (*(*ci).func).tt_ & 0xfi32 == 6i32 {
+        ci = (*ar).i_ci.as_ref().cloned();
+
+        func = (ci.as_ref().unwrap().borrow_mut()).func;
+        if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ & 0xfi32 == 6i32 {
         } else {
             __assert_fail(
                 b"((((((ci->func)->tt_)) & 0x0F)) == (6))\x00" as *const u8 as *const libc::c_char,
@@ -831,7 +835,7 @@ pub unsafe extern "C" fn lua_getinfo(
             };
         };
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -871,7 +875,7 @@ unsafe extern "C" fn collectvalidlines(mut L: *mut lua_State_0, mut f: *mut Clos
     if f.is_null() || (*f).c.tt as libc::c_int == 6i32 | 2i32 << 4i32 {
         (*(*L).top).tt_ = 0i32;
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -955,7 +959,7 @@ unsafe extern "C" fn collectvalidlines(mut L: *mut lua_State_0, mut f: *mut Clos
         };
         /* push it on stack */
         (*L).top = (*L).top.offset(1isize);
-        if (*L).top <= (*(*L).ci).top
+        if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
             && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
         {
         } else {
@@ -991,13 +995,12 @@ unsafe extern "C" fn collectvalidlines(mut L: *mut lua_State_0, mut f: *mut Clos
 unsafe extern "C" fn swapextra(mut L: *mut lua_State_0) -> () {
     if (*L).status as libc::c_int == 1i32 {
         /* get function that yielded */
-        let mut ci: *mut CallInfo_0 = (*L).ci;
+        let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
         /* exchange its 'func' and 'extra' values */
-        let mut temp: StkId = (*ci).func;
-        (*ci).func = ((*L).stack as *mut libc::c_char).offset((*ci).extra as isize) as *mut TValue;
-        (*ci).extra = (temp as *mut libc::c_char)
-            .wrapping_offset_from((*L).stack as *mut libc::c_char)
-            as libc::c_long
+        let mut temp: StkId = (ci.as_ref().unwrap().borrow_mut()).func;
+        ci.as_ref().unwrap().borrow_mut().func = ((*L).stack as *mut libc::c_char).offset((ci.as_ref().unwrap().borrow_mut()).extra as isize) as *mut TValue;
+        let some_value = (temp as *mut libc::c_char).wrapping_offset_from((*L).stack as *mut libc::c_char) as libc::c_long;
+        ci.as_ref().unwrap().borrow_mut().extra = some_value;
     };
 }
 unsafe extern "C" fn auxgetinfo(
@@ -1005,7 +1008,7 @@ unsafe extern "C" fn auxgetinfo(
     mut what: *const libc::c_char,
     mut ar: *mut lua_Debug,
     mut f: *mut Closure,
-    mut ci: *mut CallInfo_0,
+    mut ci: Option<Rc<RefCell<CallInfo>>>,
 ) -> libc::c_int {
     let mut status: libc::c_int = 1i32;
     while 0 != *what {
@@ -1015,8 +1018,8 @@ unsafe extern "C" fn auxgetinfo(
             }
             108 => {
                 (*ar).currentline =
-                    if !ci.is_null() && 0 != (*ci).callstatus as libc::c_int & 1i32 << 1i32 {
-                        currentline(ci)
+                    if !ci.is_none() && 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
+                        currentline(ci.as_ref().cloned())
                     } else {
                         -1i32
                     }
@@ -1036,14 +1039,14 @@ unsafe extern "C" fn auxgetinfo(
                 }
             }
             116 => {
-                (*ar).istailcall = (if !ci.is_null() {
-                    (*ci).callstatus as libc::c_int & 1i32 << 5i32
+                (*ar).istailcall = (if !ci.is_none() {
+                    (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 5i32
                 } else {
                     0i32
                 }) as libc::c_char
             }
             110 => {
-                (*ar).namewhat = getfuncname(L, ci, &mut (*ar).name);
+                (*ar).namewhat = getfuncname(L, ci.as_ref().cloned(), &mut (*ar).name);
                 if (*ar).namewhat.is_null() {
                     /* not found */
                     (*ar).namewhat = b"\x00" as *const u8 as *const libc::c_char;
@@ -1064,22 +1067,25 @@ unsafe extern "C" fn auxgetinfo(
 }
 unsafe extern "C" fn getfuncname(
     mut L: *mut lua_State_0,
-    mut ci: *mut CallInfo_0,
+    mut ci: Option<Rc<RefCell<CallInfo>>>,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
     /* no 'ci'? */
-    if ci.is_null() {
+    let callstatus = ci.as_ref().unwrap().borrow_mut().callstatus;
+    let previous = ci.as_ref().unwrap().borrow_mut().previous.as_ref().cloned();
+    let previous_callstatus = previous.as_ref().unwrap().borrow_mut().callstatus;
+    if ci.is_none() {
         /* no info */
         return 0 as *const libc::c_char;
-    } else if 0 != (*ci).callstatus as libc::c_int & 1i32 << 8i32 {
+    } else if 0 != callstatus as libc::c_int & 1i32 << 8i32 {
         /* is this a finalizer? */
         *name = b"__gc\x00" as *const u8 as *const libc::c_char;
         /* report it as such */
         return b"metamethod\x00" as *const u8 as *const libc::c_char;
-    } else if 0 == (*ci).callstatus as libc::c_int & 1i32 << 5i32
-        && 0 != (*(*ci).previous).callstatus as libc::c_int & 1i32 << 1i32
+    } else if 0 == callstatus as libc::c_int & 1i32 << 5i32
+        && 0 != previous_callstatus as libc::c_int & 1i32 << 1i32
     {
-        return funcnamefromcode(L, (*ci).previous, name);
+        return funcnamefromcode(L, previous, name);
     } else {
         return 0 as *const libc::c_char;
     };
@@ -1092,13 +1098,13 @@ unsafe extern "C" fn getfuncname(
 /* Active Lua function (given call info) */
 unsafe extern "C" fn funcnamefromcode(
     mut L: *mut lua_State_0,
-    mut ci: *mut CallInfo_0,
+    mut ci: Option<Rc<RefCell<CallInfo>>>,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
     /* (initial value avoids warnings) */
     let mut tm: TMS = TM_INDEX;
     /* calling function */
-    if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+    if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1110,7 +1116,7 @@ unsafe extern "C" fn funcnamefromcode(
             )).as_ptr(),
         );
     };
-    if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -1122,12 +1128,12 @@ unsafe extern "C" fn funcnamefromcode(
             )).as_ptr(),
         );
     };
-    let mut p: *mut Proto_0 = (*&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l).p;
+    let mut p: *mut Proto_0 = (*&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l).p;
     /* calling instruction index */
-    let mut pc: libc::c_int = currentpc(ci);
+    let mut pc: libc::c_int = currentpc(ci.as_ref().cloned());
     /* calling instruction */
     let mut i: Instruction = *(*p).code.offset(pc as isize);
-    if 0 != (*ci).callstatus as libc::c_int & 1i32 << 2i32 {
+    if 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 2i32 {
         /* was it called inside a hook? */
         *name = b"?\x00" as *const u8 as *const libc::c_char;
         return b"hook\x00" as *const u8 as *const libc::c_char;
@@ -1186,8 +1192,8 @@ unsafe extern "C" fn funcnamefromcode(
         return b"metamethod\x00" as *const u8 as *const libc::c_char;
     };
 }
-unsafe extern "C" fn currentpc(mut ci: *mut CallInfo_0) -> libc::c_int {
-    if 0 != (*ci).callstatus as libc::c_int & 1i32 << 1i32 {
+unsafe extern "C" fn currentpc(mut ci: Option<Rc<RefCell<CallInfo>>>) -> libc::c_int {
+    if 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
     } else {
         __assert_fail(
             b"((ci)->callstatus & (1<<1))\x00" as *const u8 as *const libc::c_char,
@@ -1198,7 +1204,7 @@ unsafe extern "C" fn currentpc(mut ci: *mut CallInfo_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+    if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1210,7 +1216,7 @@ unsafe extern "C" fn currentpc(mut ci: *mut CallInfo_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -1222,11 +1228,11 @@ unsafe extern "C" fn currentpc(mut ci: *mut CallInfo_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    return (*ci)
+    return (ci.as_ref().unwrap().borrow_mut())
         .u
         .l
         .savedpc
-        .wrapping_offset_from((*(*&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l).p).code)
+        .wrapping_offset_from((*(*&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l).p).code)
         as libc::c_long as libc::c_int
         - 1i32;
 }
@@ -1549,8 +1555,8 @@ unsafe extern "C" fn filterpc(mut pc: libc::c_int, mut jmptarget: libc::c_int) -
     };
 }
 #[no_mangle]
-pub unsafe extern "C" fn currentline(mut ci: *mut CallInfo_0) -> libc::c_int {
-    if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+pub unsafe extern "C" fn currentline(mut ci: Option<Rc<RefCell<CallInfo>>>) -> libc::c_int {
+    if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1562,7 +1568,7 @@ pub unsafe extern "C" fn currentline(mut ci: *mut CallInfo_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -1574,11 +1580,11 @@ pub unsafe extern "C" fn currentline(mut ci: *mut CallInfo_0) -> libc::c_int {
             )).as_ptr(),
         );
     };
-    return if !(*(*(&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l as *mut LClosure)).p)
+    return if !(*(*(&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l as *mut LClosure)).p)
         .lineinfo
         .is_null()
     {
-        if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+        if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
         } else {
             __assert_fail(
                 b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1590,7 +1596,7 @@ pub unsafe extern "C" fn currentline(mut ci: *mut CallInfo_0) -> libc::c_int {
                 )).as_ptr(),
             );
         };
-        if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+        if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
         } else {
             __assert_fail(
                 b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -1602,9 +1608,9 @@ pub unsafe extern "C" fn currentline(mut ci: *mut CallInfo_0) -> libc::c_int {
                 )).as_ptr(),
             );
         };
-        *(*(*&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l).p)
+        *(*(*&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l).p)
             .lineinfo
-            .offset(currentpc(ci) as isize)
+            .offset(currentpc(ci.as_ref().cloned()) as isize)
     } else {
         -1i32
     };
@@ -1712,7 +1718,7 @@ pub unsafe extern "C" fn lua_getlocal(
         /* active function; get information through 'ar' */
         /* to avoid warnings */
         let mut pos: StkId = 0 as StkId;
-        name = findlocal(L, (*ar).i_ci, n, &mut pos);
+        name = findlocal(L, (*ar).i_ci.as_ref().cloned(), n, &mut pos);
         if !name.is_null() {
             let mut io1: *mut TValue = (*L).top;
             *io1 = *pos;
@@ -1764,7 +1770,7 @@ pub unsafe extern "C" fn lua_getlocal(
                 };
             };
             (*L).top = (*L).top.offset(1isize);
-            if (*L).top <= (*(*L).ci).top
+            if (*L).top <= ((*L).ci.as_ref().unwrap().borrow_mut()).top
                 && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
             {
             } else {
@@ -1799,19 +1805,20 @@ pub unsafe extern "C" fn lua_getlocal(
 }
 unsafe extern "C" fn findlocal(
     mut L: *mut lua_State_0,
-    mut ci: *mut CallInfo_0,
+    mut ptr_ci: Option<Rc<RefCell<CallInfo>>>,
     mut n: libc::c_int,
     mut pos: *mut StkId,
 ) -> *const libc::c_char {
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = ptr_ci.as_ref().cloned();
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
     let mut base: StkId = 0 as *mut TValue;
-    if 0 != (*ci).callstatus as libc::c_int & 1i32 << 1i32 {
+    if 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
         /* access to vararg values? */
         if n < 0i32 {
             return findvararg(ci, -n, pos);
         } else {
-            base = (*ci).u.l.base;
-            if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+            base = (ci.as_ref().unwrap().borrow_mut()).u.l.base;
+            if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
             } else {
                 __assert_fail(
                     b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1823,7 +1830,7 @@ unsafe extern "C" fn findlocal(
                     )).as_ptr(),
                 );
             };
-            if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+            if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
             } else {
                 __assert_fail(
                     b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -1836,20 +1843,22 @@ unsafe extern "C" fn findlocal(
                 );
             };
             name = luaF_getlocalname(
-                (*&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l).p,
+                (*&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l).p,
                 n,
-                currentpc(ci),
+                currentpc(ci.as_ref().cloned()),
             )
         }
     } else {
-        base = (*ci).func.offset(1isize)
+        base = (ci.as_ref().unwrap().borrow_mut()).func.offset(1isize)
     }
     if name.is_null() {
         /* no 'standard' name? */
-        let mut limit: StkId = if ci == (*L).ci {
+        let mut limit: StkId = if ci.as_ref().unwrap().as_ptr() == (*L).ci.as_ref().unwrap().as_ptr() {
             (*L).top
         } else {
-            (*(*ci).next).func
+            let next = ci.as_ref().unwrap().borrow_mut().next.as_ref().cloned();
+            let func = next.as_ref().unwrap().borrow_mut().func;
+            func
         };
         /* is 'n' inside 'ci' stack? */
         if limit.wrapping_offset_from(base) as libc::c_long >= n as libc::c_long && n > 0i32 {
@@ -1863,11 +1872,11 @@ unsafe extern "C" fn findlocal(
     return name;
 }
 unsafe extern "C" fn findvararg(
-    mut ci: *mut CallInfo_0,
+    mut ci: Option<Rc<RefCell<CallInfo>>>,
     mut n: libc::c_int,
     mut pos: *mut StkId,
 ) -> *const libc::c_char {
-    if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+    if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"((((ci->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -1879,7 +1888,7 @@ unsafe extern "C" fn findvararg(
             )).as_ptr(),
         );
     };
-    if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"(((ci->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -1892,13 +1901,13 @@ unsafe extern "C" fn findvararg(
         );
     };
     let mut nparams: libc::c_int =
-        (*(*&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l).p).numparams as libc::c_int;
-    if n >= (*ci).u.l.base.wrapping_offset_from((*ci).func) as libc::c_long as libc::c_int - nparams
+        (*(*&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l).p).numparams as libc::c_int;
+    if n >= (ci.as_ref().unwrap().borrow_mut()).u.l.base.wrapping_offset_from((ci.as_ref().unwrap().borrow_mut()).func) as libc::c_long as libc::c_int - nparams
     {
         /* no such vararg */
         return 0 as *const libc::c_char;
     } else {
-        *pos = (*ci).func.offset(nparams as isize).offset(n as isize);
+        *pos = (ci.as_ref().unwrap().borrow_mut()).func.offset(nparams as isize).offset(n as isize);
         /* generic name for any vararg */
         return b"(*vararg)\x00" as *const u8 as *const libc::c_char;
     };
@@ -1928,7 +1937,7 @@ pub unsafe extern "C" fn lua_setlocal(
                                                 &[libc::c_char; 62]>(b"const char *lua_setlocal(lua_State *, const lua_Debug *, int)\x00")).as_ptr());
     };
     swapextra(L);
-    name = findlocal(L, (*ar).i_ci, n, &mut pos);
+    name = findlocal(L, (*ar).i_ci.as_ref().cloned(), n, &mut pos);
     if !name.is_null() {
         let mut io1: *mut TValue = pos;
         *io1 = *(*L).top.offset(-1isize);
@@ -2006,8 +2015,8 @@ pub unsafe extern "C" fn lua_sethook(
         mask = 0i32;
         func = None
     }
-    if 0 != (*(*L).ci).callstatus as libc::c_int & 1i32 << 1i32 {
-        (*L).oldpc = (*(*L).ci).u.l.savedpc
+    if 0 != ((*L).ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
+        (*L).oldpc = ((*L).ci.as_ref().unwrap().borrow_mut()).u.l.savedpc
     }
     ::std::ptr::write_volatile(&mut (*L).hook as *mut lua_Hook, func);
     (*L).basehookcount = count;
@@ -2044,14 +2053,14 @@ pub unsafe extern "C" fn luaG_typeerror(
 unsafe extern "C" fn varinfo(mut L: *mut lua_State_0, mut o: *const TValue) -> *const libc::c_char {
     /* to avoid warnings */
     let mut name: *const libc::c_char = 0 as *const libc::c_char;
-    let mut ci: *mut CallInfo_0 = (*L).ci;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
     let mut kind: *const libc::c_char = 0 as *const libc::c_char;
-    if 0 != (*ci).callstatus as libc::c_int & 1i32 << 1i32 {
+    if 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 1i32 {
         /* check whether 'o' is an upvalue */
-        kind = getupvalname(ci, o, &mut name);
+        kind = getupvalname(ci.as_ref().cloned(), o, &mut name);
         /* no? try a register */
-        if kind.is_null() && 0 != isinstack(ci, o) {
-            if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+        if kind.is_null() && 0 != isinstack(ci.as_ref().cloned(), o) {
+            if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
             } else {
                 __assert_fail(
                     b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -2063,7 +2072,7 @@ unsafe extern "C" fn varinfo(mut L: *mut lua_State_0, mut o: *const TValue) -> *
                     )).as_ptr(),
                 );
             };
-            if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+            if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
             } else {
                 __assert_fail(
                     b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -2076,9 +2085,9 @@ unsafe extern "C" fn varinfo(mut L: *mut lua_State_0, mut o: *const TValue) -> *
                 );
             };
             kind = getobjname(
-                (*&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l).p,
-                currentpc(ci),
-                o.wrapping_offset_from((*ci).u.l.base) as libc::c_long as libc::c_int,
+                (*&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l).p,
+                currentpc(ci.as_ref().cloned()),
+                o.wrapping_offset_from((ci.as_ref().unwrap().borrow_mut()).u.l.base) as libc::c_long as libc::c_int,
                 &mut name,
             )
         }
@@ -2100,11 +2109,11 @@ unsafe extern "C" fn varinfo(mut L: *mut lua_State_0, mut o: *const TValue) -> *
 ** not ISO C, but it should not crash a program; the subsequent
 ** checks are ISO C and ensure a correct result.
 */
-unsafe extern "C" fn isinstack(mut ci: *mut CallInfo_0, mut o: *const TValue) -> libc::c_int {
-    let mut i: ptrdiff_t = o.wrapping_offset_from((*ci).u.l.base) as libc::c_long;
+unsafe extern "C" fn isinstack(mut ci: Option<Rc<RefCell<CallInfo>>>, mut o: *const TValue) -> libc::c_int {
+    let mut i: ptrdiff_t = o.wrapping_offset_from((ci.as_ref().unwrap().borrow_mut()).u.l.base) as libc::c_long;
     return (0i32 as libc::c_long <= i
-        && i < (*ci).top.wrapping_offset_from((*ci).u.l.base) as libc::c_long
-        && (*ci).u.l.base.offset(i as isize) == o as StkId) as libc::c_int;
+        && i < (ci.as_ref().unwrap().borrow_mut()).top.wrapping_offset_from((ci.as_ref().unwrap().borrow_mut()).u.l.base) as libc::c_long
+        && (ci.as_ref().unwrap().borrow_mut()).u.l.base.offset(i as isize) == o as StkId) as libc::c_int;
 }
 /*
 ** Checks whether value 'o' came from an upvalue. (That can only happen
@@ -2112,11 +2121,11 @@ unsafe extern "C" fn isinstack(mut ci: *mut CallInfo_0, mut o: *const TValue) ->
 ** upvalues.)
 */
 unsafe extern "C" fn getupvalname(
-    mut ci: *mut CallInfo_0,
+    mut ci: Option<Rc<RefCell<CallInfo>>>,
     mut o: *const TValue,
     mut name: *mut *const libc::c_char,
 ) -> *const libc::c_char {
-    if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+    if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
     } else {
         __assert_fail(
             b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -2128,7 +2137,7 @@ unsafe extern "C" fn getupvalname(
             )).as_ptr(),
         );
     };
-    if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+    if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
     } else {
         __assert_fail(
             b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -2140,7 +2149,7 @@ unsafe extern "C" fn getupvalname(
             )).as_ptr(),
         );
     };
-    let mut c: *mut LClosure = &mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l;
+    let mut c: *mut LClosure = &mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l;
     let mut i: libc::c_int = 0;
     i = 0i32;
     while i < (*c).nupvalues as libc::c_int {
@@ -2398,7 +2407,7 @@ pub unsafe extern "C" fn luaG_errormsg(mut L: *mut lua_State_0) -> ! {
 }
 #[no_mangle]
 pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
-    let mut ci: *mut CallInfo_0 = (*L).ci;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
     let mut mask: lu_byte = (*L).hookmask as lu_byte;
     (*L).hookcount -= 1;
     let mut counthook: libc::c_int =
@@ -2409,10 +2418,10 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
         /* no line hook and count != 0; nothing to be done */
         return;
     }
-    if 0 != (*ci).callstatus as libc::c_int & 1i32 << 6i32 {
+    if 0 != (ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & 1i32 << 6i32 {
         /* called hook last time? */
         /* erase mark */
-        (*ci).callstatus = ((*ci).callstatus as libc::c_int & !(1i32 << 6i32)) as libc::c_ushort;
+        (ci.as_ref().unwrap().borrow_mut()).callstatus = ((ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int & !(1i32 << 6i32)) as libc::c_ushort;
         /* do not call hook again (VM yielded, so it did not move) */
         return;
     } else {
@@ -2421,7 +2430,7 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
             luaD_hook(L, 3i32, -1i32);
         }
         if 0 != mask as libc::c_int & 1i32 << 2i32 {
-            if (*(*ci).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
+            if (*(ci.as_ref().unwrap().borrow_mut()).func).tt_ == 6i32 | 0i32 << 4i32 | 1i32 << 6i32 {
             } else {
                 __assert_fail(
                     b"(((((ci)->func))->tt_) == ((((6 | (0 << 4))) | (1 << 6))))\x00" as *const u8
@@ -2433,7 +2442,7 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
                     )).as_ptr(),
                 );
             };
-            if (*(*(*ci).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
+            if (*(*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc).tt as libc::c_int == 6i32 | 0i32 << 4i32 {
             } else {
                 __assert_fail(
                     b"((((ci)->func)->value_).gc)->tt == (6 | (0 << 4))\x00" as *const u8
@@ -2445,8 +2454,8 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
                     )).as_ptr(),
                 );
             };
-            let mut p: *mut Proto_0 = (*&mut (*((*(*ci).func).value_.gc as *mut GCUnion)).cl.l).p;
-            let mut npc: libc::c_int = (*ci).u.l.savedpc.wrapping_offset_from((*p).code)
+            let mut p: *mut Proto_0 = (*&mut (*((*(ci.as_ref().unwrap().borrow_mut()).func).value_.gc as *mut GCUnion)).cl.l).p;
+            let mut npc: libc::c_int = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.wrapping_offset_from((*p).code)
                 as libc::c_long as libc::c_int
                 - 1i32;
             let mut newline: libc::c_int = if !(*p).lineinfo.is_null() {
@@ -2455,7 +2464,7 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
                 -1i32
             };
             /* call linehook when enter a new function, */
-            if npc == 0i32 || (*ci).u.l.savedpc <= (*L).oldpc || newline != if !(*p)
+            if npc == 0i32 || (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc <= (*L).oldpc || newline != if !(*p)
                 .lineinfo
                 .is_null()
             {
@@ -2472,7 +2481,7 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
                 luaD_hook(L, 2i32, newline);
             }
         }
-        (*L).oldpc = (*ci).u.l.savedpc;
+        (*L).oldpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc;
         if (*L).status as libc::c_int == 1i32 {
             /* did hook yield? */
             if 0 != counthook {
@@ -2480,11 +2489,11 @@ pub unsafe extern "C" fn luaG_traceexec(mut L: *mut lua_State_0) -> () {
                 (*L).hookcount = 1i32
             }
             /* undo increment (resume will increment it again) */
-            (*ci).u.l.savedpc = (*ci).u.l.savedpc.offset(-1isize);
+            (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc = (ci.as_ref().unwrap().borrow_mut()).u.l.savedpc.offset(-1isize);
             /* mark that it yielded */
-            (*ci).callstatus = ((*ci).callstatus as libc::c_int | 1i32 << 6i32) as libc::c_ushort;
+            (ci.as_ref().unwrap().borrow_mut()).callstatus = ((ci.as_ref().unwrap().borrow_mut()).callstatus as libc::c_int | 1i32 << 6i32) as libc::c_ushort;
             /* protect stack below results */
-            (*ci).func = (*L).top.offset(-1isize);
+            (ci.as_ref().unwrap().borrow_mut()).func = (*L).top.offset(-1isize);
             luaD_throw(L, 1i32);
         } else {
             return;

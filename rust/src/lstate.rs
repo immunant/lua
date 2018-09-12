@@ -3,13 +3,12 @@ use ldo::lua_longjmp;
 use lfunc::UpVal;
 use lobject::{
     lua_TValue, CClosure, Closure, GCObject, LClosure, Proto, StkId, TString, TValue, Table, Udata,
-    Value,
+    Value, Node
 };
 
-use std::boxed::Box;
 use std::convert::From;
-use std::mem;
-use std::ptr;
+use std::cell::{Ref, RefMut, RefCell};
+use std::rc::Rc;
 
 extern crate libc;
 extern "C" {
@@ -138,7 +137,7 @@ pub struct lua_State {
     pub status: lu_byte,
     pub top: StkId,
     pub l_G: *mut global_State,
-    pub ci: Option<Box<CallInfo>>,
+    pub ci: Option<Rc<RefCell<CallInfo>>>,
     pub oldpc: *const Instruction,
     pub stack_last: StkId,
     pub stack: StkId,
@@ -174,13 +173,29 @@ pub type lua_Debug_0 = lua_Debug;
 pub struct CallInfo {
     pub func: StkId,
     pub top: StkId,
-    pub previous: *mut CallInfo,
-    pub next: Option<Box<CallInfo>>,
+    pub previous: Option<Rc<RefCell<CallInfo>>>,
+    pub next: Option<Rc<RefCell<CallInfo>>>,
     pub u: unnamed,
     pub extra: ptrdiff_t,
     pub nresults: libc::c_short,
     pub callstatus: libc::c_ushort,
 }
+
+impl CallInfo {
+    pub fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(CallInfo {
+            func: 0 as StkId,
+            top: 0 as StkId,
+            previous: None,
+            next: None,
+            u: unnamed::from(0),
+            extra: 0 as ptrdiff_t,
+            nresults: 0 as libc::c_short,
+            callstatus: 0 as libc::c_ushort,
+        }))
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union unnamed {
@@ -369,13 +384,7 @@ pub union unnamed_4 {
     pub hnext: *mut TString_0,
 }
 /* copy a value into a key without messing up field 'next' */
-pub type Node = Node_0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct Node_0 {
-    pub i_val: TValue,
-    pub i_key: TKey,
-}
+pub type Node_0 = Node;
 /*
 ** Tables
 */
@@ -663,13 +672,13 @@ unsafe extern "C" fn close_state(mut L: *mut lua_State_0) -> () {
         0i32 as size_t,
     );
 }
-unsafe extern "C" fn freestack(mut L: *mut lua_State_0) -> () {
+unsafe extern "C" fn freestack(mut L: *mut lua_State) -> () {
     if (*L).stack.is_null() {
         /* stack not completely built yet */
         return;
     } else {
         /* free the entire 'ci' list */
-        (*L).ci = &mut (*L).base_ci;
+        *((*L).ci.as_ref().unwrap()).borrow_mut() = (*L).base_ci.clone();
         luaE_freeCI(L);
         if (*L).nci as libc::c_int == 0i32 {
         } else {
@@ -694,16 +703,15 @@ unsafe extern "C" fn freestack(mut L: *mut lua_State_0) -> () {
 }
 #[no_mangle]
 pub unsafe extern "C" fn luaE_freeCI(mut L: *mut lua_State_0) -> () {
-    let mut ci: *mut CallInfo_0 = (*L).ci;
-    let mut next: *mut CallInfo_0 = (*ci).next;
-    (*ci).next = 0 as *mut CallInfo;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
+    let mut next: Option<Rc<RefCell<CallInfo>>> = ci.as_ref().unwrap().borrow_mut().next.as_ref().cloned();
+    ci.as_ref().unwrap().borrow_mut().next = None;
     loop {
         ci = next;
-        if ci.is_null() {
+        if ci.is_none() {
             break;
         }
-        next = (*ci).next;
-        Box::from_raw(ci);
+        next = ci.as_ref().unwrap().borrow_mut().next.take();
         (*L).nci = (*L).nci.wrapping_sub(1)
     }
 }
@@ -930,7 +938,7 @@ unsafe extern "C" fn init_registry(mut L: *mut lua_State_0, mut g: *mut global_S
 }
 unsafe extern "C" fn stack_init(mut L1: *mut lua_State_0, mut L: *mut lua_State_0) -> () {
     let mut i: libc::c_int = 0;
-    let mut ci: *mut CallInfo_0 = 0 as *mut CallInfo_0;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = Some(CallInfo::new());
     /* initialize stack array */
     if ::std::mem::size_of::<libc::c_int>() as libc::c_ulong
         >= ::std::mem::size_of::<size_t>() as libc::c_ulong
@@ -957,17 +965,17 @@ unsafe extern "C" fn stack_init(mut L1: *mut lua_State_0, mut L: *mut lua_State_
     (*L1).top = (*L1).stack;
     (*L1).stack_last = (*L1).stack.offset((*L1).stacksize as isize).offset(-5isize);
     /* initialize first ci */
-    ci = &mut (*L1).base_ci;
-    (*ci).previous = 0 as *mut CallInfo;
-    (*ci).next = (*ci).previous;
-    (*ci).callstatus = 0i32 as libc::c_ushort;
-    (*ci).func = (*L1).top;
+    *ci.as_ref().unwrap().borrow_mut() = (*L1).base_ci.clone();
+    ci.as_ref().unwrap().borrow_mut().previous = None;
+    ci.as_ref().unwrap().borrow_mut().next = None;
+    ci.as_ref().unwrap().borrow_mut().callstatus = 0i32 as libc::c_ushort;
+    ci.as_ref().unwrap().borrow_mut().func = (*L1).top;
     let fresh1 = (*L1).top;
     (*L1).top = (*L1).top.offset(1);
     (*fresh1).tt_ = 0i32;
     /* 'function' entry for this 'ci' */
-    (*ci).top = (*L1).top.offset(20isize);
-    (*L1).ci = ci;
+    ci.as_ref().unwrap().borrow_mut().top = (*L1).top.offset(20isize);
+    (*L1).ci = ci.as_ref().cloned();
 }
 /*
 ** Compute an initial seed as random as possible. Rely on Address Space
@@ -1036,7 +1044,7 @@ unsafe extern "C" fn makeseed(mut L: *mut lua_State_0) -> libc::c_uint {
 unsafe extern "C" fn preinit_thread(mut L: *mut lua_State_0, mut g: *mut global_State) -> () {
     (*L).l_G = g;
     (*L).stack = 0 as StkId;
-    (*L).ci = 0 as *mut CallInfo_0;
+    (*L).ci = None;
     (*L).nci = 0i32 as libc::c_ushort;
     (*L).stacksize = 0i32;
     /* thread has no upvalues */
@@ -1179,7 +1187,7 @@ pub unsafe extern "C" fn lua_newthread(mut L: *mut lua_State_0) -> *mut lua_Stat
     };
     /* anchor it on L stack */
     (*L).top = (*L).top.offset(1isize);
-    if (*L).top <= (*(*L).ci).top
+    if (*L).top <= (*L).ci.as_ref().unwrap().borrow_mut().top
         && !(b"stack overflow\x00" as *const u8 as *const libc::c_char).is_null()
     {
     } else {
@@ -1315,24 +1323,10 @@ impl From<i32> for unnamed {
     }
 }
 
-pub extern "C" fn luaE_newCI() -> Box<CallInfo> {
-    let ci = Box::new(CallInfo {
-        func: 0 as StkId,
-        top: 0 as StkId,
-        previous: 0 as *mut CallInfo,
-        next: 0 as *mut CallInfo,
-        u: unnamed::from(0),
-        extra: 0 as ptrdiff_t,
-        nresults: 0 as libc::c_short,
-        callstatus: 0 as libc::c_ushort,
-    });
-    ci
-}
-
 #[no_mangle]
-pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> Box<CallInfo> {
-    let ci: Box<CallInfo> = luaE_newCI();
-    if (*(*L).ci).next.is_null() {
+pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> Rc<RefCell<CallInfo>> {
+    let ci: Rc<RefCell<CallInfo>> = CallInfo::new();
+    if (*L).ci.as_ref().unwrap().borrow_mut().next.is_none() {
     } else {
         __assert_fail(
             b"L->ci->next == ((void*)0)\x00" as *const u8 as *const libc::c_char,
@@ -1343,30 +1337,31 @@ pub unsafe extern "C" fn luaE_extendCI(mut L: *mut lua_State) -> Box<CallInfo> {
             )).as_ptr(),
         );
     };
-    (*(*L).ci).next = ci;
-    (*ci).previous = (*L).ci;
-    (*ci).next = 0 as *mut CallInfo;
+    (*L).ci.as_ref().unwrap().borrow_mut().next = Some(ci.clone());
+    ci.as_ref().borrow_mut().previous = (*L).ci.as_ref().cloned();
+    ci.as_ref().borrow_mut().next = None;
     (*L).nci = (*L).nci.wrapping_add(1);
     return ci;
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn luaE_shrinkCI(mut L: *mut lua_State) -> () {
-    let mut ci: *mut CallInfo = (*L).ci;
+    let mut ci: Option<Rc<RefCell<CallInfo>>> = (*L).ci.as_ref().cloned();
     /* next's next */
-    let mut next2: *mut CallInfo = 0 as *mut CallInfo;
+    let mut next2: Option<Rc<RefCell<CallInfo>>> = Some(CallInfo::new());
     /* while there are two nexts */
-    while !(*ci).next.is_null() && {
-        next2 = (*(*ci).next).next;
-        !next2.is_null()
+    while !ci.as_ref().unwrap().borrow().next.is_none() && {
+        let mut temp = ci.as_ref().unwrap().borrow().next.as_ref().cloned();
+        next2 = temp.as_ref().unwrap().borrow().next.as_ref().cloned();
+        // next2 = ci.as_ref().unwrap().borrow().next.as_ref().unwrap().borrow().next.as_ref().cloned();
+        !next2.is_none()
     } {
-        Box::from_raw((*ci).next);
         /* free next */
         (*L).nci = (*L).nci.wrapping_sub(1);
         /* remove 'next' from the list */
-        (*ci).next = next2;
-        (*next2).previous = ci;
+        ci.as_ref().unwrap().borrow_mut().next = next2.as_ref().cloned();
+        next2.as_ref().unwrap().borrow_mut().previous = ci.as_ref().cloned();
         /* keep next's next */
-        ci = next2
+        ci = next2.as_ref().cloned()
     }
 }
