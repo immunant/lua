@@ -38,7 +38,7 @@
 ** (It will crash with a limit too high.)
 */
 #if !defined(LUAI_MAXCSTACK)
-#define LUAI_MAXCSTACK		2200
+#define LUAI_MAXCSTACK		1000
 #endif
 
 
